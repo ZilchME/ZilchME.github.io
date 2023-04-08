@@ -4,6 +4,19 @@
   
     
     <entry>
+      <title>在WSL2中安装MySQL并通过Window本地连接</title>
+      <link href="/2023/04/08/202304081501/"/>
+      <url>/2023/04/08/202304081501/</url>
+      
+        <content type="html"><![CDATA[<blockquote><p>转载，原文地址:<a href="https://mysteriouspreserve.com/blog/2022/11/06/WSL2-MySQL/">https://mysteriouspreserve.com/blog/2022/11/06/WSL2-MySQL/</a></p></blockquote><p>在 WSL2 上安装的 MySQL 无法在 Windows 上直接由 127.0.0.1 访问，在此记录配置 MySQL 远程连接使得 Windows 的 SQL 管理软件可以直接管理 WSL2 里的 MySQL的方法。<br> <span id="more"></span></p><p>首先开启 WSL2 的 systemd：</p><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">vim /etc/wsl.conf</span><br></pre></td></tr></table></figure><p>然后在其中添加如下内容：</p><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">[boot]</span></span><br><span class="line"><span class="attr">systemd</span>=<span class="literal">true</span></span><br></pre></td></tr></table></figure><p>上述也可以用如下指令实现：</p><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">echo -e &quot;[boot]\nsystemd=true&quot; | sudo tee -a /etc/wsl.conf</span><br></pre></td></tr></table></figure><p>退出 WSL2，使用 <code>wsl --shutdown</code> 关闭 WSL2</p><p>再次启动 WSL2，安装 MySQL：</p><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install mysql-server</span><br></pre></td></tr></table></figure><p>修改 <code>/etc/mysql/mysql.conf.d/mysqld.cnf</code> 中的 <code>bind-address</code> 为 <code>0.0.0.0</code>，使得 MySQL 允许外部访问</p><p>重启 MySQL，并初始化 MySQL：</p><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo /etc/init.d/mysql restart</span><br><span class="line">sudo mysql_secure_installation</span><br></pre></td></tr></table></figure><p>进入MySQL，开放外部权限：</p><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo mysql -u root -p</span><br></pre></td></tr></table></figure><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">use mysql;</span><br><span class="line"><span class="keyword">update</span> <span class="keyword">user</span> <span class="keyword">set</span> host<span class="operator">=</span>&quot;%&quot; <span class="keyword">where</span> <span class="keyword">user</span><span class="operator">=</span>&quot;root&quot;;</span><br></pre></td></tr></table></figure><p>最后更改 iptable 防火墙规则并保存：</p><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo iptables -A INPUT -p tcp -m tcp --dport 3306 -j ACCEPT</span><br><span class="line">sudo iptables-save -c</span><br></pre></td></tr></table></figure><p>至此便可以让 Windows 通过本地 127.0.0.1:3306 访问 WSL2 的 MySQL Server</p>]]></content>
+      
+      
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>Hello World</title>
       <link href="/2023/04/06/hello-world/"/>
       <url>/2023/04/06/hello-world/</url>
