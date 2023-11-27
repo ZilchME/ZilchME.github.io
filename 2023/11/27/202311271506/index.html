@@ -20,19 +20,19 @@
     var CONFIG = {"hostname":"zilchme.github.io","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"mac"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"manual","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
   </script>
 
-  <meta name="description" content="网上搜的方法可以说五花八门，很多写了一大堆也不想看，这里记录一个实测成功且较为简单的方法。">
+  <meta name="description" content="2016年10月5日，谷歌宣布开放一个名为 cartographer 的即时定位与地图建模库，开发人员可以使用该库实现机器人在二维或三维条件下的定位及建图功能。cartograhper 的设计目的是在计算资源有限的情况下，实时获取相对较高精度的 2D 地图。考虑到基于模拟策略的粒子滤波方法在较大环境下对内存和计算资源的需求较高，cartographer 采用基于优化方法。 cartographer">
 <meta property="og:type" content="article">
-<meta property="og:title" content="在 Linux 中让 matplotlib 能正常显示中文的一种方式">
-<meta property="og:url" content="https://zilchme.github.io/2023/04/16/202304161811/index.html">
+<meta property="og:title" content="cartographer 的安装">
+<meta property="og:url" content="https://zilchme.github.io/2023/11/27/202311271506/index.html">
 <meta property="og:site_name" content="未知领域">
-<meta property="og:description" content="网上搜的方法可以说五花八门，很多写了一大堆也不想看，这里记录一个实测成功且较为简单的方法。">
+<meta property="og:description" content="2016年10月5日，谷歌宣布开放一个名为 cartographer 的即时定位与地图建模库，开发人员可以使用该库实现机器人在二维或三维条件下的定位及建图功能。cartograhper 的设计目的是在计算资源有限的情况下，实时获取相对较高精度的 2D 地图。考虑到基于模拟策略的粒子滤波方法在较大环境下对内存和计算资源的需求较高，cartographer 采用基于优化方法。 cartographer">
 <meta property="og:locale" content="zh_CN">
-<meta property="article:published_time" content="2023-04-16T10:11:16.000Z">
-<meta property="article:modified_time" content="2023-04-16T10:25:34.669Z">
+<meta property="article:published_time" content="2023-11-27T07:07:01.000Z">
+<meta property="article:modified_time" content="2023-11-27T07:15:24.984Z">
 <meta property="article:author" content="Nostalgia">
 <meta name="twitter:card" content="summary">
 
-<link rel="canonical" href="https://zilchme.github.io/2023/04/16/202304161811/">
+<link rel="canonical" href="https://zilchme.github.io/2023/11/27/202311271506/">
 
 
 <script id="page-configurations">
@@ -45,7 +45,7 @@
   };
 </script>
 
-  <title>在 Linux 中让 matplotlib 能正常显示中文的一种方式 | 未知领域</title>
+  <title>cartographer 的安装 | 未知领域</title>
   
 
 
@@ -187,7 +187,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="https://zilchme.github.io/2023/04/16/202304161811/">
+    <link itemprop="mainEntityOfPage" href="https://zilchme.github.io/2023/11/27/202311271506/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.png">
@@ -200,7 +200,7 @@
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          在 Linux 中让 matplotlib 能正常显示中文的一种方式
+          cartographer 的安装
         </h1>
 
         <div class="post-meta">
@@ -213,7 +213,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2023-04-16 18:11:16 / 修改时间：18:25:34" itemprop="dateCreated datePublished" datetime="2023-04-16T18:11:16+08:00">2023-04-16</time>
+              <time title="创建时间：2023-11-27 15:07:01 / 修改时间：15:15:24" itemprop="dateCreated datePublished" datetime="2023-11-27T15:07:01+08:00">2023-11-27</time>
             </span>
 
           <br>
@@ -222,14 +222,14 @@
                 <i class="far fa-file-word"></i>
               </span>
                 <span class="post-meta-item-text">本文字数：</span>
-              <span>418</span>
+              <span>2.3k</span>
             </span>
             <span class="post-meta-item" title="阅读时长">
               <span class="post-meta-item-icon">
                 <i class="far fa-clock"></i>
               </span>
                 <span class="post-meta-item-text">阅读时长 &asymp;</span>
-              <span>1 分钟</span>
+              <span>2 分钟</span>
             </span>
 
         </div>
@@ -241,16 +241,32 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <p>网上搜的方法可以说五花八门，很多写了一大堆也不想看，这里记录一个实测成功且较为简单的方法。<br> <span id="more"></span></p>
-<h2 id="安装-simhei-ttf-字体"><a href="#安装-simhei-ttf-字体" class="headerlink" title="安装 simhei.ttf 字体"></a>安装 simhei.ttf 字体</h2><p>从 Windows 上拷贝 simhei.ttf 字体，位置：<code>C:/Windows/Fonts/simhei.ttf</code><br>然后安装到 Linux，如果是 GUI 可以直接打开 ttf 文件点击安装</p>
-<p>刷新字体：</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo fc-cache -f -v</span><br></pre></td></tr></table></figure>
-<h2 id="清除-matplotlib-字体缓存"><a href="#清除-matplotlib-字体缓存" class="headerlink" title="清除 matplotlib 字体缓存"></a>清除 matplotlib 字体缓存</h2><p>查看 matplotlib 字体缓存目录</p>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> matplotlib <span class="keyword">as</span> plt</span><br><span class="line">plt.get_cachedir()</span><br></pre></td></tr></table></figure>
-<p>删除该目录，下次使用时就会自动刷新缓存</p>
-<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">rm -rf /home/xxx/.cache/matplotlib</span><br></pre></td></tr></table></figure>
-<h2 id="指定使用字体"><a href="#指定使用字体" class="headerlink" title="指定使用字体"></a>指定使用字体</h2><p>每次使用时在 python 中指定字体，即可正常显示中文</p>
-<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line">plt.rcParams[<span class="string">&#x27;font.sans-serif&#x27;</span>] = [<span class="string">&#x27;SimHei&#x27;</span>]</span><br></pre></td></tr></table></figure>
+        <p>2016年10月5日，谷歌宣布开放一个名为 cartographer 的即时定位与地图建模库，开发人员可以使用该库实现机器人在二维或三维条件下的定位及建图功能。<br>cartograhper 的设计目的是在计算资源有限的情况下，实时获取相对较高精度的 2D 地图。考虑到基于模拟策略的粒子滤波方法在较大环境下对内存和计算资源的需求较高，cartographer 采用基于优化方法。</p>
+<p>cartographer 可以使用 apt 命令一键安装，但在本文章还是提供源码编译的安装方法。</p>
+<blockquote>
+<p>安装参考 <a target="_blank" rel="noopener" href="https://google-cartographer-ros.readthedocs.io/en/latest/compilation.html">https://google-cartographer-ros.readthedocs.io/en/latest/compilation.html</a></p>
+</blockquote>
+ <span id="more"></span>
+<h2 id="Building-amp-Installation"><a href="#Building-amp-Installation" class="headerlink" title="Building &amp; Installation"></a>Building &amp; Installation</h2><h3 id="安装依赖工具"><a href="#安装依赖工具" class="headerlink" title="安装依赖工具"></a>安装依赖工具</h3><p>ROS Noetic 使用如下命令安装依赖工具</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get update</span><br><span class="line">sudo apt-get install -y python3-wstool python3-rosdep ninja-build stow</span><br></pre></td></tr></table></figure>
+<p>对于更早的版本使用如下命令</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get update</span><br><span class="line">sudo apt-get install -y python-wstool python-rosdep ninja-build stow</span><br></pre></td></tr></table></figure>
+<h3 id="创建工作空间并下载源码"><a href="#创建工作空间并下载源码" class="headerlink" title="创建工作空间并下载源码"></a>创建工作空间并下载源码</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">mkdir cartographer_ws</span><br><span class="line">cd cartographer_ws</span><br><span class="line">wstool init src</span><br><span class="line">wstool merge -t src https://raw.githubusercontent.com/cartographer-project/cartographer_ros/master/cartographer_ros.rosinstall</span><br><span class="line">wstool update -t src</span><br></pre></td></tr></table></figure>
+<h3 id="安装-cartographer-ros-的依赖项"><a href="#安装-cartographer-ros-的依赖项" class="headerlink" title="安装 cartographer_ros 的依赖项"></a>安装 cartographer_ros 的依赖项</h3><p>如果在安装 ROS 已经执行过<code>sudo rosdep init</code>，那么该命令的错误可以忽略</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo rosdep init</span><br><span class="line">rosdep update</span><br><span class="line">rosdep install --from-paths src --ignore-src --rosdistro=$&#123;ROS_DISTRO&#125; -y</span><br></pre></td></tr></table></figure>
+<p>如果在执行最后一行命令时出现如下错误：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ERROR: the following packages/stacks could not have their rosdep keys resolved</span><br><span class="line">to system dependencies:</span><br><span class="line">cartographer: [libabsl-dev] defined as &quot;not available&quot; for OS version [focal]</span><br></pre></td></tr></table></figure>
+<p>解决方法是删除 cartographer package 下 package.xml 文件的 line 46 (<code>&lt;depend&gt;libabsl-dev&lt;/depend&gt;</code>)</p>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://github.com/cartographer-project/cartographer_ros/issues/1726">https://github.com/cartographer-project/cartographer_ros/issues/1726</a></p>
+</blockquote>
+<p>Cartographer 需要通过以下脚本手动安装 <a target="_blank" rel="noopener" href="https://abseil.io/">abseil-cpp</a> 库：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">src/cartographer/scripts/install_abseil.sh</span><br></pre></td></tr></table></figure>
+<h3 id="Build-and-install"><a href="#Build-and-install" class="headerlink" title="Build and install"></a>Build and install</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">catkin_make_isolated --install --use-ninja</span><br></pre></td></tr></table></figure>
+<h3 id="测试-cartographer"><a href="#测试-cartographer" class="headerlink" title="测试 cartographer"></a>测试 cartographer</h3><p>下载2D数据包并运行demo</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">wget -P ~/cartographer_ws/dataset https://storage.googleapis.com/cartographer-public-data/bags/backpack_2d/cartographer_paper_deutsches_museum.bag</span><br><span class="line">source ~/cartographer_ws/install_isolated/setup.bash</span><br><span class="line">roslaunch cartographer_ros demo_backpack_2d.launch bag_filename:=$&#123;HOME&#125;/cartographer_ws/dataset/cartographer_paper_deutsches_museum.bag</span><br></pre></td></tr></table></figure>
+<p>下载3D数据包并运行demo</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">wget -P ~/cartographer_ws/dataset https://storage.googleapis.com/cartographer-public-data/bags/backpack_3d/with_intensities/b3-2016-04-05-14-14-00.bag</span><br><span class="line">source ~/cartographer_ws/install_isolated/setup.bash</span><br><span class="line">roslaunch cartographer_ros demo_backpack_3d.launch bag_filename:=$&#123;HOME&#125;/cartographer_ws/dataset/b3-2016-04-05-14-14-00.bag</span><br><span class="line">rosservice call /write_state &quot;&#123;filename: &#x27;$&#123;HOME&#125;/cartographer_ws/dataset/cartographer_paper_deutsches_museum.bag.pbstream&#x27;, include_unfinished_submaps: &quot;true&quot;&#125;&quot;</span><br></pre></td></tr></table></figure>
 
     </div>
 
@@ -266,7 +282,7 @@
   </li>
   <li class="post-copyright-link">
     <strong>本文链接：</strong>
-    <a href="https://zilchme.github.io/2023/04/16/202304161811/" title="在 Linux 中让 matplotlib 能正常显示中文的一种方式">https://zilchme.github.io/2023/04/16/202304161811/</a>
+    <a href="https://zilchme.github.io/2023/11/27/202311271506/" title="cartographer 的安装">https://zilchme.github.io/2023/11/27/202311271506/</a>
   </li>
   <li class="post-copyright-license">
     <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
@@ -283,13 +299,10 @@
         
     <div class="post-nav">
       <div class="post-nav-item">
-    <a href="/2023/04/09/202304092211/" rel="prev" title="使用简单的遗传算法求解函数的最大值">
-      <i class="fa fa-chevron-left"></i> 使用简单的遗传算法求解函数的最大值
+    <a href="/2023/08/02/202308021051/" rel="prev" title="在 Ubuntu 20.04 上安装 fcitx5">
+      <i class="fa fa-chevron-left"></i> 在 Ubuntu 20.04 上安装 fcitx5
     </a></div>
-      <div class="post-nav-item">
-    <a href="/2023/07/24/202307241655/" rel="next" title="在 Ubuntu 上安装 CUDA 及 cuDNN">
-      在 Ubuntu 上安装 CUDA 及 cuDNN <i class="fa fa-chevron-right"></i>
-    </a></div>
+      <div class="post-nav-item"></div>
     </div>
       </footer>
     
@@ -348,7 +361,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%89%E8%A3%85-simhei-ttf-%E5%AD%97%E4%BD%93"><span class="nav-number">1.</span> <span class="nav-text">安装 simhei.ttf 字体</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B8%85%E9%99%A4-matplotlib-%E5%AD%97%E4%BD%93%E7%BC%93%E5%AD%98"><span class="nav-number">2.</span> <span class="nav-text">清除 matplotlib 字体缓存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8C%87%E5%AE%9A%E4%BD%BF%E7%94%A8%E5%AD%97%E4%BD%93"><span class="nav-number">3.</span> <span class="nav-text">指定使用字体</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Building-amp-Installation"><span class="nav-number">1.</span> <span class="nav-text">Building &amp; Installation</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%89%E8%A3%85%E4%BE%9D%E8%B5%96%E5%B7%A5%E5%85%B7"><span class="nav-number">1.1.</span> <span class="nav-text">安装依赖工具</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E5%B7%A5%E4%BD%9C%E7%A9%BA%E9%97%B4%E5%B9%B6%E4%B8%8B%E8%BD%BD%E6%BA%90%E7%A0%81"><span class="nav-number">1.2.</span> <span class="nav-text">创建工作空间并下载源码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%89%E8%A3%85-cartographer-ros-%E7%9A%84%E4%BE%9D%E8%B5%96%E9%A1%B9"><span class="nav-number">1.3.</span> <span class="nav-text">安装 cartographer_ros 的依赖项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Build-and-install"><span class="nav-number">1.4.</span> <span class="nav-text">Build and install</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95-cartographer"><span class="nav-number">1.5.</span> <span class="nav-text">测试 cartographer</span></a></li></ol></li></ol></div>
       </div>
       <!--/noindex-->
 
