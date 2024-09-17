@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/dead-fish.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/dead-fish.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/dead-fish.png">
+  <link rel="mask-icon" href="/images/dead-fish.png" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"mac"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="2016年10月5日，谷歌宣布开放一个名为 cartographer 的即时定位与地图建模库，开发人员可以使用该库实现机器人在二维或三维条件下的定位及建图功能。cartograhper 的设计目的是在计算资源有限的情况下，实时获取相对较高精度的 2D 地图。考虑到基于模拟策略的粒子滤波方法在较大环境下对内存和计算资源的需求较高，cartographer 采用基于优化方法。 本文章记录 cartog">
+<meta property="og:type" content="article">
+<meta property="og:title" content="cartographer 的安装">
+<meta property="og:url" content="http://example.com/2023/11/27/202311271506/index.html">
+<meta property="og:site_name" content="未知领域">
+<meta property="og:description" content="2016年10月5日，谷歌宣布开放一个名为 cartographer 的即时定位与地图建模库，开发人员可以使用该库实现机器人在二维或三维条件下的定位及建图功能。cartograhper 的设计目的是在计算资源有限的情况下，实时获取相对较高精度的 2D 地图。考虑到基于模拟策略的粒子滤波方法在较大环境下对内存和计算资源的需求较高，cartographer 采用基于优化方法。 本文章记录 cartog">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-11-27T07:07:01.000Z">
+<meta property="article:modified_time" content="2024-09-17T14:37:58.740Z">
+<meta property="article:author" content="Danny Lee">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2023/11/27/202311271506/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>cartographer 的安装 | 未知领域</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">未知领域</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2023/11/27/202311271506/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="https://avatars.githubusercontent.com/u/82753601?v=4">
+      <meta itemprop="name" content="Danny Lee">
+      <meta itemprop="description" content="摸了">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="未知领域">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          cartographer 的安装
+        </h1>
+
+        <div class="post-meta">
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2023-11-27 15:07:01" itemprop="dateCreated datePublished" datetime="2023-11-27T15:07:01+08:00">2023-11-27</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2024-09-17 22:37:58" itemprop="dateModified" datetime="2024-09-17T22:37:58+08:00">2024-09-17</time>
+              </span>
+
+          <br>
+            <span class="post-meta-item" title="本文字数">
+              <span class="post-meta-item-icon">
+                <i class="far fa-file-word"></i>
+              </span>
+                <span class="post-meta-item-text">本文字数：</span>
+              <span>2.3k</span>
+            </span>
+            <span class="post-meta-item" title="阅读时长">
+              <span class="post-meta-item-icon">
+                <i class="far fa-clock"></i>
+              </span>
+                <span class="post-meta-item-text">阅读时长 &asymp;</span>
+              <span>2 分钟</span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>2016年10月5日，谷歌宣布开放一个名为 cartographer 的即时定位与地图建模库，开发人员可以使用该库实现机器人在二维或三维条件下的定位及建图功能。<br>cartograhper 的设计目的是在计算资源有限的情况下，实时获取相对较高精度的 2D 地图。考虑到基于模拟策略的粒子滤波方法在较大环境下对内存和计算资源的需求较高，cartographer 采用基于优化方法。</p>
+<p>本文章记录 cartographer 源码编译的安装方法。</p>
+<blockquote>
+<p>安装参考 <a target="_blank" rel="noopener" href="https://google-cartographer-ros.readthedocs.io/en/latest/compilation.html">https://google-cartographer-ros.readthedocs.io/en/latest/compilation.html</a></p>
+</blockquote>
+ <span id="more"></span>
+
+<h2 id="Building-Installation"><a href="#Building-Installation" class="headerlink" title="Building &amp; Installation"></a>Building &amp; Installation</h2><h3 id="安装依赖工具"><a href="#安装依赖工具" class="headerlink" title="安装依赖工具"></a>安装依赖工具</h3><p>ROS Noetic 使用如下命令安装依赖工具</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get update</span><br><span class="line">sudo apt-get install -y python3-wstool python3-rosdep ninja-build stow</span><br></pre></td></tr></table></figure>
+
+<p>对于更早的版本使用如下命令</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get update</span><br><span class="line">sudo apt-get install -y python-wstool python-rosdep ninja-build stow</span><br></pre></td></tr></table></figure>
+
+<h3 id="创建工作空间并下载源码"><a href="#创建工作空间并下载源码" class="headerlink" title="创建工作空间并下载源码"></a>创建工作空间并下载源码</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">mkdir cartographer_ws</span><br><span class="line">cd cartographer_ws</span><br><span class="line">wstool init src</span><br><span class="line">wstool merge -t src https://raw.githubusercontent.com/cartographer-project/cartographer_ros/master/cartographer_ros.rosinstall</span><br><span class="line">wstool update -t src</span><br></pre></td></tr></table></figure>
+
+<h3 id="安装-cartographer-ros-的依赖项"><a href="#安装-cartographer-ros-的依赖项" class="headerlink" title="安装 cartographer_ros 的依赖项"></a>安装 cartographer_ros 的依赖项</h3><p>如果在安装 ROS 已经执行过<code>sudo rosdep init</code>，那么该命令的错误可以忽略</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo rosdep init</span><br><span class="line">rosdep update</span><br><span class="line">rosdep install --from-paths src --ignore-src --rosdistro=$&#123;ROS_DISTRO&#125; -y</span><br></pre></td></tr></table></figure>
+
+<p>如果在执行最后一行命令时出现如下错误：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ERROR: the following packages/stacks could not have their rosdep keys resolved</span><br><span class="line">to system dependencies:</span><br><span class="line">cartographer: [libabsl-dev] defined as &quot;not available&quot; for OS version [focal]</span><br></pre></td></tr></table></figure>
+
+<p>解决方法是删除 cartographer package 下 package.xml 文件的 line 46 (<code>&lt;depend&gt;libabsl-dev&lt;/depend&gt;</code>)</p>
+<blockquote>
+<p><a target="_blank" rel="noopener" href="https://github.com/cartographer-project/cartographer_ros/issues/1726">https://github.com/cartographer-project/cartographer_ros/issues/1726</a></p>
+</blockquote>
+<p>Cartographer 需要通过以下脚本手动安装 <a target="_blank" rel="noopener" href="https://abseil.io/">abseil-cpp</a> 库：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">src/cartographer/scripts/install_abseil.sh</span><br></pre></td></tr></table></figure>
+
+<h3 id="Build-and-install"><a href="#Build-and-install" class="headerlink" title="Build and install"></a>Build and install</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">catkin_make_isolated --install --use-ninja</span><br></pre></td></tr></table></figure>
+
+<h3 id="测试-cartographer"><a href="#测试-cartographer" class="headerlink" title="测试 cartographer"></a>测试 cartographer</h3><p>下载2D数据包并运行demo</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">wget -P ~/cartographer_ws/dataset https://storage.googleapis.com/cartographer-public-data/bags/backpack_2d/cartographer_paper_deutsches_museum.bag</span><br><span class="line">source ~/cartographer_ws/install_isolated/setup.bash</span><br><span class="line">roslaunch cartographer_ros demo_backpack_2d.launch bag_filename:=$&#123;HOME&#125;/cartographer_ws/dataset/cartographer_paper_deutsches_museum.bag</span><br></pre></td></tr></table></figure>
+
+<p>下载3D数据包并运行demo</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">wget -P ~/cartographer_ws/dataset https://storage.googleapis.com/cartographer-public-data/bags/backpack_3d/with_intensities/b3-2016-04-05-14-14-00.bag</span><br><span class="line">source ~/cartographer_ws/install_isolated/setup.bash</span><br><span class="line">roslaunch cartographer_ros demo_backpack_3d.launch bag_filename:=$&#123;HOME&#125;/cartographer_ws/dataset/b3-2016-04-05-14-14-00.bag</span><br><span class="line">rosservice call /write_state &quot;&#123;filename: &#x27;$&#123;HOME&#125;/cartographer_ws/dataset/cartographer_paper_deutsches_museum.bag.pbstream&#x27;, include_unfinished_submaps: &quot;true&quot;&#125;&quot;</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/08/02/202308021051/" rel="prev" title="在 Ubuntu 20.04 上安装 fcitx5">
+      <i class="fa fa-chevron-left"></i> 在 Ubuntu 20.04 上安装 fcitx5
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2024/02/04/202402041609/" rel="next" title="Linux 安装 Nodejs">
+      Linux 安装 Nodejs <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Building-Installation"><span class="nav-number">1.</span> <span class="nav-text">Building &amp; Installation</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%89%E8%A3%85%E4%BE%9D%E8%B5%96%E5%B7%A5%E5%85%B7"><span class="nav-number">1.1.</span> <span class="nav-text">安装依赖工具</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%88%9B%E5%BB%BA%E5%B7%A5%E4%BD%9C%E7%A9%BA%E9%97%B4%E5%B9%B6%E4%B8%8B%E8%BD%BD%E6%BA%90%E7%A0%81"><span class="nav-number">1.2.</span> <span class="nav-text">创建工作空间并下载源码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AE%89%E8%A3%85-cartographer-ros-%E7%9A%84%E4%BE%9D%E8%B5%96%E9%A1%B9"><span class="nav-number">1.3.</span> <span class="nav-text">安装 cartographer_ros 的依赖项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Build-and-install"><span class="nav-number">1.4.</span> <span class="nav-text">Build and install</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95-cartographer"><span class="nav-number">1.5.</span> <span class="nav-text">测试 cartographer</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Danny Lee"
+      src="https://avatars.githubusercontent.com/u/82753601?v=4">
+  <p class="site-author-name" itemprop="name">Danny Lee</p>
+  <div class="site-description" itemprop="description">摸了</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">9</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yourname" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yourname" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2023 – 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Danny Lee</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-chart-area"></i>
+    </span>
+      <span class="post-meta-item-text">站点总字数：</span>
+    <span title="站点总字数">15k</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-coffee"></i>
+    </span>
+      <span class="post-meta-item-text">站点阅读时长 &asymp;</span>
+    <span title="站点阅读时长">14 分钟</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script size="300" alpha="0.6" zIndex="-1" src="/lib/canvas-ribbon/canvas-ribbon.js"></script>
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="utf-8"?>
+<search>
+  <entry>
+    <title>Hello World</title>
+    <url>/2023/03/22/hello-world/</url>
+    <content><![CDATA[<p>不知道为什么而存在的网站, 文章随缘更新<br> <span id="more"></span></p>
+<h2 id="Hexo-安装及初始化"><a href="#Hexo-安装及初始化" class="headerlink" title="Hexo 安装及初始化"></a>Hexo 安装及初始化</h2><p>参考 <a href="https://hexo.io/docs/">https://hexo.io/docs/</a> 内容</p>
+<h2 id="部署静态网页至-GitHub"><a href="#部署静态网页至-GitHub" class="headerlink" title="部署静态网页至 GitHub"></a>部署静态网页至 GitHub</h2><ol>
+<li>安装 <a href="https://github.com/hexojs/hexo-deployer-git">hexo-deployer-git</a></li>
+</ol>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">npm install hexo-deployer-git --save</span><br></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>在 <code>_config.yml</code> 中配置：</li>
+</ol>
+<figure class="highlight yml"><table><tr><td class="code"><pre><span class="line"><span class="attr">deploy:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">git</span></span><br><span class="line">  <span class="attr">repo:</span> <span class="string">&lt;repository</span> <span class="string">url&gt;</span> <span class="comment"># https://bitbucket.org/JohnSmith/johnsmith.bitbucket.io</span></span><br><span class="line">  <span class="attr">branch:</span> [<span class="string">branch</span>]</span><br><span class="line">  <span class="attr">message:</span> [<span class="string">message</span>]</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>使用 <code>hexo clean &amp;&amp; hexo deploy</code> 部署至 GitHub</li>
+</ol>
+<h2 id="配置-NexT-主题"><a href="#配置-NexT-主题" class="headerlink" title="配置 NexT 主题"></a>配置 NexT 主题</h2><p>NexT 主题仓库 <a href="https://github.com/theme-next/hexo-theme-next">https://github.com/theme-next/hexo-theme-next</a></p>
+<h3 id="安装主题"><a href="#安装主题" class="headerlink" title="安装主题"></a>安装主题</h3><p>直接将仓库克隆至 <code>themes/next</code> 即可：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">git clone https://github.com/theme-next/hexo-theme-next themes/next</span><br></pre></td></tr></table></figure>
+
+<p>随后在  <code>_config.yml</code> 中启用主题：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">theme:</span> <span class="string">next</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="更新主题"><a href="#更新主题" class="headerlink" title="更新主题"></a>更新主题</h3><p>直接拉取最新仓库即可更新主题：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">cd themes/next</span><br><span class="line">git pull</span><br></pre></td></tr></table></figure>
+
+<h2 id="个性化设置"><a href="#个性化设置" class="headerlink" title="个性化设置"></a>个性化设置</h2><h3 id="网站描述"><a href="#网站描述" class="headerlink" title="网站描述"></a>网站描述</h3><p>在 <code>_config.yml</code> 中配置：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Site</span></span><br><span class="line"><span class="attr">title:</span> <span class="string">未知领域</span></span><br><span class="line"><span class="attr">subtitle:</span> <span class="string">&#x27;&#x27;</span></span><br><span class="line"><span class="attr">description:</span> <span class="string">摸了</span></span><br><span class="line"><span class="attr">keywords:</span></span><br><span class="line"><span class="attr">author:</span> <span class="string">Danny</span> <span class="string">Lee</span></span><br><span class="line"><span class="attr">language:</span> <span class="string">zh-CN</span></span><br><span class="line"><span class="attr">timezone:</span> <span class="string">Asia/Shanghai</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="建站时间"><a href="#建站时间" class="headerlink" title="建站时间"></a>建站时间</h3><p>在主题配置文件 <code>themes/next/_config.yml</code> 中配置：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">footer:</span></span><br><span class="line">  <span class="comment"># Specify the date when the site was setup. If not defined, current year will be used.</span></span><br><span class="line">  <span class="attr">since:</span> <span class="number">2023</span>   <span class="comment">#建站时间</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="显示文章字数和阅读时长"><a href="#显示文章字数和阅读时长" class="headerlink" title="显示文章字数和阅读时长"></a>显示文章字数和阅读时长</h3><p>安装插件：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">npm install hexo-symbols-count-time</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>_config.yml</code> 中添加：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">symbols_count_time:</span></span><br><span class="line">  <span class="attr">symbols:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">time:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">total_symbols:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">total_time:</span> <span class="literal">true</span></span><br><span class="line">  <span class="attr">exclude_codeblock:</span> <span class="literal">false</span></span><br><span class="line">  <span class="attr">awl:</span> <span class="number">4</span></span><br><span class="line">  <span class="attr">wpm:</span> <span class="number">275</span></span><br><span class="line">  <span class="attr">suffix:</span> <span class="string">&quot;mins.&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>在主题配置文件 <code>themes/next/_config.yml</code> 中配置：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Post wordcount display settings</span></span><br><span class="line"><span class="comment"># Dependencies: https://github.com/theme-next/hexo-symbols-count-time</span></span><br><span class="line"><span class="attr">symbols_count_time:</span></span><br><span class="line"> <span class="attr">separated_meta:</span> <span class="literal">true</span></span><br><span class="line"> <span class="attr">item_text_post:</span> <span class="literal">true</span></span><br><span class="line"> <span class="attr">item_text_total:</span> <span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="canvas-背景彩带"><a href="#canvas-背景彩带" class="headerlink" title="canvas 背景彩带"></a>canvas 背景彩带</h3><p>参见 <a href="https://github.com/theme-next/theme-next-canvas-ribbon">https://github.com/theme-next/theme-next-canvas-ribbon</a></p>
+<h3 id="mathjax-公式"><a href="#mathjax-公式" class="headerlink" title="mathjax 公式"></a>mathjax 公式</h3><p>在主题配置文件 <code>themes/next/_config.yml</code> 中配置：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">mathjax:</span></span><br><span class="line">    <span class="attr">enable:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">mhchem:</span> <span class="literal">false</span>  <span class="comment"># 用来写化学方程式</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="透明背景"><a href="#透明背景" class="headerlink" title="透明背景"></a>透明背景</h3><p>站点根目录创建文件 <code>/source/_data/styles.styl</code> 并填入如下配置：</p>
+<figure class="highlight stylus"><table><tr><td class="code"><pre><span class="line"><span class="selector-pseudo">:root</span> &#123;</span><br><span class="line">  <span class="attr">--content-bg-color</span>:<span class="built_in">rgba</span>(<span class="number">255</span>, <span class="number">255</span>, <span class="number">255</span>, <span class="number">0.8</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>并在主题配置文件 <code>themes/next/_config.yml</code> 中配置：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Define custom file paths.</span></span><br><span class="line"><span class="comment"># Create your custom files in site directory `source/_data` and uncomment needed files below.</span></span><br><span class="line"><span class="attr">custom_file_path:</span></span><br><span class="line">  <span class="attr">style:</span> <span class="string">source/_data/styles.styl</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="圆角边框"><a href="#圆角边框" class="headerlink" title="圆角边框"></a>圆角边框</h3><p>站点根目录创建文件 <code>/source/_data/variables.styl</code> 并填入如下配置：</p>
+<figure class="highlight stylus"><table><tr><td class="code"><pre><span class="line"><span class="variable">$border</span>-radius-inner     = <span class="number">10px</span>;</span><br><span class="line"><span class="variable">$border</span>-radius           = <span class="number">10px</span>;</span><br></pre></td></tr></table></figure>
+
+<p>同时在 <code>/source/_data/styles.styl</code> 添加如下配置：</p>
+<figure class="highlight stylus"><table><tr><td class="code"><pre><span class="line"><span class="selector-class">.sidebar</span> &#123;</span><br><span class="line">  <span class="attribute">border-radius</span>: <span class="number">10px</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>并在主题配置文件 <code>themes/next/_config.yml</code> 中配置：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Define custom file paths.</span></span><br><span class="line"><span class="comment"># Create your custom files in site directory `source/_data` and uncomment needed files below.</span></span><br><span class="line"><span class="attr">custom_file_path:</span></span><br><span class="line">  <span class="attr">variable:</span> <span class="string">source/_data/variables.styl</span></span><br><span class="line">  <span class="attr">style:</span> <span class="string">source/_data/styles.styl</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="边框阴影"><a href="#边框阴影" class="headerlink" title="边框阴影"></a>边框阴影</h3><p>将 <code>themes/next/source/css/_common/components/post/post.styl</code> 的 <code>.use-motion</code> 中的</p>
+<figure class="highlight stylus"><table><tr><td class="code"><pre><span class="line"><span class="keyword">if</span> (<span class="built_in">hexo-config</span>(<span class="string">&#x27;motion.transition.post_block&#x27;</span>)) &#123;</span><br><span class="line">  <span class="selector-class">.post-block</span>, <span class="selector-class">.pagination</span>, <span class="selector-class">.comments</span> &#123;</span><br><span class="line">    <span class="attribute">opacity</span>: <span class="number">0</span>;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>改为:</p>
+<figure class="highlight stylus"><table><tr><td class="code"><pre><span class="line"><span class="keyword">if</span> (<span class="built_in">hexo-config</span>(<span class="string">&#x27;motion.transition.post_block&#x27;</span>)) &#123;</span><br><span class="line">  <span class="selector-class">.post-block</span> &#123;</span><br><span class="line">    <span class="attribute">opacity</span>: <span class="number">0</span>;</span><br><span class="line">    <span class="attribute">margin-top</span>: <span class="number">60px</span>;</span><br><span class="line">    <span class="attribute">margin-bottom</span>: <span class="number">60px</span>;</span><br><span class="line">    <span class="attribute">padding</span>: <span class="number">25px</span>;</span><br><span class="line">    <span class="attribute">background</span>:<span class="built_in">rgba</span>(<span class="number">255</span>,<span class="number">255</span>,<span class="number">255</span>,<span class="number">0.9</span>) none repeat scroll <span class="meta">!important</span>;</span><br><span class="line">    -webkit-<span class="attribute">box-shadow</span>: <span class="number">0</span> <span class="number">0</span> <span class="number">5px</span> <span class="built_in">rgba</span>(<span class="number">156</span>, <span class="number">156</span>, <span class="number">156</span>, <span class="number">0.5</span>);</span><br><span class="line">    -moz-<span class="attribute">box-shadow</span>: <span class="number">0</span> <span class="number">0</span> <span class="number">5px</span> <span class="built_in">rgba</span>(<span class="number">104</span>, <span class="number">104</span>, <span class="number">104</span>, <span class="number">0.5</span>);</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="selector-class">.pagination</span>, .comments&#123;</span><br><span class="line">    <span class="attribute">opacity</span>: <span class="number">0</span>;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="本地搜索"><a href="#本地搜索" class="headerlink" title="本地搜索"></a>本地搜索</h3><p>安装插件：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">npm install hexo-generator-searchdb</span><br></pre></td></tr></table></figure>
+
+<p>并在主题配置文件 <code>themes/next/_config.yml</code> 中配置：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="comment"># Local Search</span></span><br><span class="line"><span class="comment"># Dependencies: https://github.com/theme-next/hexo-generator-searchdb</span></span><br><span class="line"><span class="attr">local_search:</span></span><br><span class="line">  <span class="attr">enable:</span> <span class="literal">true</span></span><br><span class="line">  <span class="comment"># If auto, trigger search by changing input.</span></span><br><span class="line">  <span class="comment"># If manual, trigger search by pressing enter key or search button.</span></span><br><span class="line">  <span class="attr">trigger:</span> <span class="string">auto</span></span><br><span class="line">  <span class="comment"># Show top n results per article, show all results by setting to -1</span></span><br><span class="line">  <span class="attr">top_n_per_article:</span> <span class="number">1</span></span><br><span class="line">  <span class="comment"># Unescape html strings to the readable one.</span></span><br><span class="line">  <span class="attr">unescape:</span> <span class="literal">false</span></span><br><span class="line">  <span class="comment"># Preload the search data when the page loads.</span></span><br><span class="line">  <span class="attr">preload:</span> <span class="literal">false</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="配置代码块"><a href="#配置代码块" class="headerlink" title="配置代码块"></a>配置代码块</h3><p>根据注释提示以及实际需求在主题配置文件 <code>themes/next/_config.yml</code> 中配置：</p>
+<figure class="highlight yaml"><table><tr><td class="code"><pre><span class="line"><span class="attr">codeblock:</span></span><br><span class="line">  <span class="comment"># Code Highlight theme</span></span><br><span class="line">  <span class="comment"># Available values: normal | night | night eighties | night blue | night bright | solarized | solarized dark | galactic</span></span><br><span class="line">  <span class="comment"># See: https://github.com/chriskempson/tomorrow-theme</span></span><br><span class="line">  <span class="attr">highlight_theme:</span> <span class="string">night</span> <span class="string">eighties</span> </span><br><span class="line">  <span class="comment"># Add copy button on codeblock</span></span><br><span class="line">  <span class="attr">copy_button:</span></span><br><span class="line">    <span class="attr">enable:</span> <span class="literal">true</span></span><br><span class="line">    <span class="comment"># Show text copy result.</span></span><br><span class="line">    <span class="attr">show_result:</span> <span class="literal">true</span></span><br><span class="line">    <span class="comment"># Available values: default | flat | mac</span></span><br><span class="line">    <span class="attr">style:</span> <span class="string">mac</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="配置文章置顶"><a href="#配置文章置顶" class="headerlink" title="配置文章置顶"></a>配置文章置顶</h3><p>Hexo 本身并没有内置文章置顶功能，但有一个默认的对文章排序的组件 <code>hexo-generator-index</code>，也就是在站点配置文件内的 <code>index_generator</code> 选项，置顶功能本质上是一个排序组件，故需要替换依赖项：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">npm uninstall hexo-generator-index --save</span><br><span class="line">npm install hexo-generator-index-pin-top --save</span><br></pre></td></tr></table></figure>
+
+<p>插件安装完之后，只需要在文章头部信息栏内设置 <code>top</code> 属性即可：</p>
+<figure class="highlight markdown"><table><tr><td class="code"><pre><span class="line">---</span><br><span class="line">title: 写在最前面</span><br><span class="line">hide: false</span><br><span class="line"><span class="section">top: true</span></span><br><span class="line"><span class="section">---</span></span><br></pre></td></tr></table></figure>
+
+<p>为了能有个比较突出的标志，可以在 <code>themes/next/layout/_macro/post.swig</code> 文件中找到 <code>&lt;div class=&quot;post-meta&quot;&gt;</code> 并添加代码：</p>
+<figure class="highlight html"><table><tr><td class="code"><pre><span class="line">&#123;% if post.top %&#125;</span><br><span class="line"><span class="tag">&lt;<span class="name">span</span> <span class="attr">class</span>=<span class="string">&quot;post-meta-item-icon&quot;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">i</span> <span class="attr">class</span>=<span class="string">&quot;fa fa-thumbtack&quot;</span> <span class="attr">style</span>=<span class="string">&quot;color: #165C91&quot;</span>&gt;</span><span class="tag">&lt;/<span class="name">i</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">span</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">font</span> <span class="attr">color</span>=<span class="string">#165C91</span> &gt;</span><span class="tag">&lt;<span class="name">b</span>&gt;</span>置顶<span class="tag">&lt;/<span class="name">b</span>&gt;</span><span class="tag">&lt;/<span class="name">font</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">span</span> <span class="attr">class</span>=<span class="string">&quot;post-meta-divider&quot;</span>&gt;</span>|<span class="tag">&lt;/<span class="name">span</span>&gt;</span></span><br><span class="line">&#123;% endif %&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="配置超链接颜色"><a href="#配置超链接颜色" class="headerlink" title="配置超链接颜色"></a>配置超链接颜色</h3><p>在 <code>themes/next/source/css/_common/components/post/post.styl</code> 最后添加：</p>
+<figure class="highlight stylus"><table><tr><td class="code"><pre><span class="line"><span class="selector-class">.post-body</span> <span class="selector-tag">p</span> a&#123;</span><br><span class="line">  <span class="attribute">color</span>: <span class="number">#0593d3</span>;</span><br><span class="line">  <span class="attribute">border-bottom</span>: none;</span><br><span class="line">  <span class="selector-pseudo">&amp;:hover</span> &#123;</span><br><span class="line">    <span class="attribute">color</span>: <span class="number">#0477ab</span>;</span><br><span class="line">    <span class="attribute">text-decoration</span>: underline;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>]]></content>
+  </entry>
+  <entry>
+    <title>Linux 安装 Nodejs</title>
+    <url>/2024/02/04/202402041609/</url>
+    <content><![CDATA[<p>安装 Nodejs 的一种方法。在 Linux 中安装编译好的程序大抵都是如此。<br> <span id="more"></span></p>
+<p>在 Node.js 官网中可下载源码或编译完成的包：</p>
+<blockquote>
+<p><a href="https://nodejs.org/en">https://nodejs.org/en</a></p>
+</blockquote>
+<p>在此以编译完成的压缩包 <code>node-v20.11.0-linux-x64.tar.xz</code> 为例</p>
+<ol>
+<li><p>解压缩文件：</p>
+ <figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">tar -xf node-v20.11.0-linux-x64.tar.xz</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>移动文件：</p>
+<p> 为了方便管理，将它移动到一个合适的位置，比如 <code>/usr/local/</code>。</p>
+ <figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo mv node-v20.11.0-linux-x64 /usr/local/</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>设置环境变量：</p>
+<p> 为了能够在终端中直接使用 <code>node</code> 和 <code>npm</code> 命令，将 <code>bin</code> 目录添加到系统的 <code>PATH</code> 环境变量中。在 <code>shell</code> 配置文件 <code>.bashrc</code> 添加：</p>
+ <figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">export PATH=/usr/local/node-v20.11.0-linux-x64/bin:$PATH</span><br></pre></td></tr></table></figure>
+
+<p> 重启终端或运行以下命令使配置生效：</p>
+ <figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">source ~/.bashrc</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>验证安装：</p>
+<p> 运行以下命令来验证 <code>Node.js</code> 和 <code>npm</code> 是否成功安装：</p>
+ <figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">node -v</span><br><span class="line">npm -v</span><br></pre></td></tr></table></figure>
+
+<p> 如果安装成功，你将看到对应的版本号信息。</p>
+</li>
+</ol>
+]]></content>
+  </entry>
+  <entry>
+    <title>cartographer 的安装</title>
+    <url>/2023/11/27/202311271506/</url>
+    <content><![CDATA[<p>2016年10月5日，谷歌宣布开放一个名为 cartographer 的即时定位与地图建模库，开发人员可以使用该库实现机器人在二维或三维条件下的定位及建图功能。<br>cartograhper 的设计目的是在计算资源有限的情况下，实时获取相对较高精度的 2D 地图。考虑到基于模拟策略的粒子滤波方法在较大环境下对内存和计算资源的需求较高，cartographer 采用基于优化方法。</p>
+<p>本文章记录 cartographer 源码编译的安装方法。</p>
+<blockquote>
+<p>安装参考 <a href="https://google-cartographer-ros.readthedocs.io/en/latest/compilation.html">https://google-cartographer-ros.readthedocs.io/en/latest/compilation.html</a></p>
+</blockquote>
+ <span id="more"></span>
+
+<h2 id="Building-Installation"><a href="#Building-Installation" class="headerlink" title="Building &amp; Installation"></a>Building &amp; Installation</h2><h3 id="安装依赖工具"><a href="#安装依赖工具" class="headerlink" title="安装依赖工具"></a>安装依赖工具</h3><p>ROS Noetic 使用如下命令安装依赖工具</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo apt-get update</span><br><span class="line">sudo apt-get install -y python3-wstool python3-rosdep ninja-build stow</span><br></pre></td></tr></table></figure>
+
+<p>对于更早的版本使用如下命令</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo apt-get update</span><br><span class="line">sudo apt-get install -y python-wstool python-rosdep ninja-build stow</span><br></pre></td></tr></table></figure>
+
+<h3 id="创建工作空间并下载源码"><a href="#创建工作空间并下载源码" class="headerlink" title="创建工作空间并下载源码"></a>创建工作空间并下载源码</h3><figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">mkdir cartographer_ws</span><br><span class="line">cd cartographer_ws</span><br><span class="line">wstool init src</span><br><span class="line">wstool merge -t src https://raw.githubusercontent.com/cartographer-project/cartographer_ros/master/cartographer_ros.rosinstall</span><br><span class="line">wstool update -t src</span><br></pre></td></tr></table></figure>
+
+<h3 id="安装-cartographer-ros-的依赖项"><a href="#安装-cartographer-ros-的依赖项" class="headerlink" title="安装 cartographer_ros 的依赖项"></a>安装 cartographer_ros 的依赖项</h3><p>如果在安装 ROS 已经执行过<code>sudo rosdep init</code>，那么该命令的错误可以忽略</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo rosdep init</span><br><span class="line">rosdep update</span><br><span class="line">rosdep install --from-paths src --ignore-src --rosdistro=$&#123;ROS_DISTRO&#125; -y</span><br></pre></td></tr></table></figure>
+
+<p>如果在执行最后一行命令时出现如下错误：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">ERROR: the following packages/stacks could not have their rosdep keys resolved</span><br><span class="line">to system dependencies:</span><br><span class="line">cartographer: [libabsl-dev] defined as &quot;not available&quot; for OS version [focal]</span><br></pre></td></tr></table></figure>
+
+<p>解决方法是删除 cartographer package 下 package.xml 文件的 line 46 (<code>&lt;depend&gt;libabsl-dev&lt;/depend&gt;</code>)</p>
+<blockquote>
+<p><a href="https://github.com/cartographer-project/cartographer_ros/issues/1726">https://github.com/cartographer-project/cartographer_ros/issues/1726</a></p>
+</blockquote>
+<p>Cartographer 需要通过以下脚本手动安装 <a href="https://abseil.io/">abseil-cpp</a> 库：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">src/cartographer/scripts/install_abseil.sh</span><br></pre></td></tr></table></figure>
+
+<h3 id="Build-and-install"><a href="#Build-and-install" class="headerlink" title="Build and install"></a>Build and install</h3><figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">catkin_make_isolated --install --use-ninja</span><br></pre></td></tr></table></figure>
+
+<h3 id="测试-cartographer"><a href="#测试-cartographer" class="headerlink" title="测试 cartographer"></a>测试 cartographer</h3><p>下载2D数据包并运行demo</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">wget -P ~/cartographer_ws/dataset https://storage.googleapis.com/cartographer-public-data/bags/backpack_2d/cartographer_paper_deutsches_museum.bag</span><br><span class="line">source ~/cartographer_ws/install_isolated/setup.bash</span><br><span class="line">roslaunch cartographer_ros demo_backpack_2d.launch bag_filename:=$&#123;HOME&#125;/cartographer_ws/dataset/cartographer_paper_deutsches_museum.bag</span><br></pre></td></tr></table></figure>
+
+<p>下载3D数据包并运行demo</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">wget -P ~/cartographer_ws/dataset https://storage.googleapis.com/cartographer-public-data/bags/backpack_3d/with_intensities/b3-2016-04-05-14-14-00.bag</span><br><span class="line">source ~/cartographer_ws/install_isolated/setup.bash</span><br><span class="line">roslaunch cartographer_ros demo_backpack_3d.launch bag_filename:=$&#123;HOME&#125;/cartographer_ws/dataset/b3-2016-04-05-14-14-00.bag</span><br><span class="line">rosservice call /write_state &quot;&#123;filename: &#x27;$&#123;HOME&#125;/cartographer_ws/dataset/cartographer_paper_deutsches_museum.bag.pbstream&#x27;, include_unfinished_submaps: &quot;true&quot;&#125;&quot;</span><br></pre></td></tr></table></figure>
+]]></content>
+  </entry>
+  <entry>
+    <title>在 Ubuntu 20.04 上安装 fcitx5</title>
+    <url>/2023/08/02/202308021051/</url>
+    <content><![CDATA[<p>由于qt版本，fcitx5-config 只能安装在 Ubuntu 20.10 以上版本，低于此版本直接用 apt 安装的话无法使用 GUI 进行配置。在此记录一次在 Ubuntu 20.04 上从 flatpak 安装 fcitx5</p>
+<span id="more"></span>
+
+<h2 id="安装-flatpak"><a href="#安装-flatpak" class="headerlink" title="安装 flatpak"></a>安装 flatpak</h2><figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo add-apt-repository ppa:flatpak/stable</span><br><span class="line">sudo apt update</span><br><span class="line">sudo apt install flatpak</span><br><span class="line">sudo apt install gnome-software-plugin-flatpak</span><br><span class="line">flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo</span><br></pre></td></tr></table></figure>
+
+<h2 id="安装-fcitx5"><a href="#安装-fcitx5" class="headerlink" title="安装 fcitx5"></a>安装 fcitx5</h2><h3 id="添加-flatub-仓库"><a href="#添加-flatub-仓库" class="headerlink" title="添加 flatub 仓库"></a>添加 flatub 仓库</h3><figure class="highlight shell"><table><tr><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">如果使用的是旧版flatpak，在安装的时候会需要显示的指定软件仓库名字: flatpak install flathub org.fcitx.Fcitx5</span></span><br><span class="line">flatpak install org.fcitx.Fcitx5</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">安装 fcitx5 输入法引擎, 例如fcitx5-chinese-addons, or mozc</span></span><br><span class="line">flatpak install org.fcitx.Fcitx5.Addon.ChineseAddons # 中文输入法</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">flatpak install org.fcitx.Fcitx5.Addon.Mozc</span> </span><br></pre></td></tr></table></figure>
+
+<h3 id="安装-fcitx5-后端"><a href="#安装-fcitx5-后端" class="headerlink" title="安装 fcitx5 后端"></a>安装 fcitx5 后端</h3><figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo apt install fcitx5-frontend-gtk2 fcitx5-frontend-gtk3 fcitx5-frontend-qt5</span><br></pre></td></tr></table></figure>
+
+<h3 id="配置环境变量"><a href="#配置环境变量" class="headerlink" title="配置环境变量"></a>配置环境变量</h3><figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo vim /etc/profile</span><br></pre></td></tr></table></figure>
+
+<p>在末尾添加如下内容</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">export XMODIFIERS=@im=fcitx</span><br><span class="line">export GTK_IM_MODULE=fcitx</span><br><span class="line">export QT_IM_MODULE=fcitx</span><br></pre></td></tr></table></figure>
+
+<h3 id="设置开机启动"><a href="#设置开机启动" class="headerlink" title="设置开机启动"></a>设置开机启动</h3><p>我是直接在 gnome-tweak 里设置的，如果懂的也可以用其他办法<del>（但是我不会）</del></p>
+<h3 id="一些简单配置"><a href="#一些简单配置" class="headerlink" title="一些简单配置"></a>一些简单配置</h3><h4 id="安装词库"><a href="#安装词库" class="headerlink" title="安装词库"></a>安装词库</h4><p>下载<code>*.dict</code>文件，放置到 <code>~/.local/share/fcitx5/pinyin/dictionaries</code>目录</p>
+<p>这里由于一些迷之原因，刚装好的时候并没有找到这个目录，后来可能是我在GUI上配置了一些东西吧它就创建了（纯猜测）</p>
+<p>附带两个词库连接：<br><a href="https://github.com/outloudvi/mw2fcitx/tree/20220114">萌娘百科词库</a><br><a href="https://github.com/felixonmars/fcitx5-pinyin-zhwiki/tree/0.2.3">wiki中文词库</a></p>
+<h4 id="安装主题"><a href="#安装主题" class="headerlink" title="安装主题"></a>安装主题</h4><p>下载主题，放置到 <code>~/.local/share/fcitx5/themes</code> 目录，之后在 <code>配置—附加组件—经典用户界面</code> 中切换</p>
+<h2 id="关于-JetBrains-全家桶输入框位置不正确"><a href="#关于-JetBrains-全家桶输入框位置不正确" class="headerlink" title="关于 JetBrains 全家桶输入框位置不正确"></a>关于 JetBrains 全家桶输入框位置不正确</h2><p>据说根本原因在于其附带的 JBR ，激进的解决方案需要更改其 JBR</p>
+<p><a href="https://github.com/RikudouPatrickstar/JetBrainsRuntime-for-Linux-x64">https://github.com/RikudouPatrickstar/JetBrainsRuntime-for-Linux-x64</a></p>
+<p>目前还没尝试，待补充吧。</p>
+<h2 id="参考链接"><a href="#参考链接" class="headerlink" title="参考链接"></a>参考链接</h2><blockquote>
+<p><a href="https://ouyen.github.io/fcitx5-ubuntu/">https://ouyen.github.io/fcitx5-ubuntu/</a></p>
+</blockquote>
+]]></content>
+  </entry>
+  <entry>
+    <title>python 中 map 与 lambad 的应用</title>
+    <url>/2023/07/27/202307271830/</url>
+    <content><![CDATA[<p>在数据处理时有时会用到像是如下所示的代码，初次了解时会比较迷惑。</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line">day_of_year = pd.to_datetime(pumpkins[<span class="string">&#x27;Date&#x27;</span>]).apply(<span class="keyword">lambda</span> dt: (dt - datetime(dt.year, <span class="number">1</span>, <span class="number">1</span>)).days)</span><br></pre></td></tr></table></figure>
+
+ <span id="more"></span>
+
+<h2 id="Lambda-表达式"><a href="#Lambda-表达式" class="headerlink" title="Lambda 表达式"></a>Lambda 表达式</h2><p>Lambda表达式是一种匿名函数，也称为”匿名函数”或” Lambda 函数”。它是一种简洁的方式来定义简单的函数，通常用于函数式编程范式中。</p>
+<p>在 Python 中，Lambda 表达式的语法如下：</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="keyword">lambda</span> arguments: expression</span><br></pre></td></tr></table></figure>
+
+<p>其中，<code>lambda</code>是关键字，<code>arguments</code>是输入参数，可以是零个或多个，用逗号分隔，而<code>expression</code>是函数体，即函数的计算逻辑。Lambda 函数可以接受任意数量的参数，但它只能包含一个表达式。</p>
+<p>Lambda表达式具有以下特点：</p>
+<ol>
+<li><p>匿名性：Lambda 函数是匿名的，它没有命名，因此通常用于简单的临时操作，而不是为复杂的功能定义命名函数。</p>
+</li>
+<li><p>简洁性：Lambda 表达式的语法非常简洁，适合用于单行函数的定义，以及需要传递函数作为参数的情况。</p>
+</li>
+<li><p>返回值：Lambda 函数会自动返回表达式的计算结果，无需使用<code>return</code>关键字。</p>
+</li>
+</ol>
+<p>使用 Lambda 表达式的常见场景包括：</p>
+<ul>
+<li>作为参数传递给高阶函数，例如<code>map()</code>、<code>filter()</code>和<code>sorted()</code>等。</li>
+<li>用于定义简单的转换或过滤逻辑，以替代定义完整的命名函数。</li>
+</ul>
+<h2 id="map-函数"><a href="#map-函数" class="headerlink" title="map() 函数"></a><code>map()</code> 函数</h2><p><code>map()</code>函数是 Python 内置函数之一，它用于将一个函数应用于给定的可迭代对象（如列表、元组等）的所有元素，生成一个新的可迭代对象，其中包含经过函数处理后的结果。</p>
+<p><code>map()</code>函数的语法如下：</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="built_in">map</span>(function, iterable, ...)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><code>function</code>：这是一个函数，可以是 Python 内置函数、自定义函数或 Lambda 表达式。<code>map()</code>将这个函数应用于<code>iterable</code>中的每个元素。</p>
+</li>
+<li><p><code>iterable</code>：这是一个可迭代对象，如列表、元组、集合等。<code>map()</code>会对<code>iterable</code>中的每个元素都调用<code>function</code>进行处理。</p>
+</li>
+</ul>
+<p><code>map()</code>函数会返回一个<code>map</code>对象，它是一个惰性求值的对象，意味着在实际需要结果时才会计算并返回。要将<code>map</code>对象转换为列表或其他类型的可迭代对象，可以使用<code>list()</code>、<code>tuple()</code>等函数进行转换。</p>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><p>1.使用 Lambda 表达式对列表中的元素进行平方操作：</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line">numbers = [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]</span><br><span class="line">squared_numbers = <span class="built_in">list</span>(<span class="built_in">map</span>(<span class="keyword">lambda</span> x: x ** <span class="number">2</span>, numbers))</span><br><span class="line"><span class="built_in">print</span>(squared_numbers)  <span class="comment"># 输出: [1, 4, 9, 16, 25]</span></span><br></pre></td></tr></table></figure>
+
+<p>2.使用 Lambda 表达式对列表中的偶数进行过滤：</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line">numbers = [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>]</span><br><span class="line">even_numbers = <span class="built_in">list</span>(<span class="built_in">filter</span>(<span class="keyword">lambda</span> x: x % <span class="number">2</span> == <span class="number">0</span>, numbers))</span><br><span class="line"><span class="built_in">print</span>(even_numbers)  <span class="comment"># 输出: [2, 4, 6, 8, 10]</span></span><br></pre></td></tr></table></figure>
+
+<p>3.使用 Lambda 表达式定义一个简单的计算器函数：</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="comment"># 定义一个简单的计算器函数，接受操作符和两个操作数，并执行相应的操作</span></span><br><span class="line">calculator = <span class="keyword">lambda</span> op, a, b: a + b <span class="keyword">if</span> op == <span class="string">&#x27;+&#x27;</span> <span class="keyword">else</span> a - b <span class="keyword">if</span> op == <span class="string">&#x27;-&#x27;</span> <span class="keyword">else</span> a * b</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(calculator(<span class="string">&#x27;+&#x27;</span>, <span class="number">5</span>, <span class="number">3</span>))  <span class="comment"># 输出: 8</span></span><br><span class="line"><span class="built_in">print</span>(calculator(<span class="string">&#x27;-&#x27;</span>, <span class="number">10</span>, <span class="number">4</span>))  <span class="comment"># 输出: 6</span></span><br><span class="line"><span class="built_in">print</span>(calculator(<span class="string">&#x27;*&#x27;</span>, <span class="number">2</span>, <span class="number">6</span>))  <span class="comment"># 输出: 12</span></span><br></pre></td></tr></table></figure>
+
+<p>在最开始的例子中，<code>apply()</code>函数的作用类似于<code>map()</code></p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line">day_of_year = pd.to_datetime(pumpkins[<span class="string">&#x27;Date&#x27;</span>]).apply(<span class="keyword">lambda</span> dt: (dt - datetime(dt.year, <span class="number">1</span>, <span class="number">1</span>)).days)</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li><p><code>pd.to_datetime(pumpkins[&#39;Date&#39;])</code>: 这部分代码将<code>pumpkins</code> DataFrame中的’Date’列转换为pandas中的日期时间格式。<code>pd.to_datetime()</code>是pandas的一个函数，它将给定的日期字符串转换为日期时间对象，这样可以在之后进行日期的计算和处理。</p>
+</li>
+<li><p><code>apply(lambda dt: (dt - datetime(dt.year, 1, 1)).days)</code>: 这是对转换后的日期时间对象进行操作。<code>apply()</code>是pandas DataFrame对象的一个方法，它允许我们对DataFrame的每个元素应用一个函数。在这里，我们使用了一个lambda函数来计算每个日期在一年中的第几天。</p>
+<ul>
+<li><p><code>lambda dt: (dt - datetime(dt.year, 1, 1))</code>: 这个lambda函数接受一个日期时间对象<code>dt</code>作为输入，并计算该日期时间对象与当年1月1日之间的时间差，得到一个<code>timedelta</code>对象。这个时间差表示该日期距离当年的1月1日有多少天。</p>
+</li>
+<li><p><code>.days</code>: <code>timedelta</code>对象有一个属性<code>.days</code>，表示该时间差的天数部分。</p>
+</li>
+</ul>
+</li>
+</ol>
+<p>因此，整个代码的目的是将<code>pumpkins</code> DataFrame中的’Date’列转换为日期时间格式，然后计算每个日期在一年中的第几天，并将结果保存在名为<code>day_of_year</code>的新列中。这样可以方便地了解每个日期在一年中的位置，用于后续的时间分析和处理。</p>
+]]></content>
+  </entry>
+  <entry>
+    <title>在 Ubuntu 上安装 CUDA 及 cuDNN</title>
+    <url>/2023/07/24/202307241655/</url>
+    <content><![CDATA[<p>一种较快且稳定安装 CUDA 及 cuDNN 的方法。<br> <span id="more"></span></p>
+<h2 id="安装-nVidia-显卡驱动"><a href="#安装-nVidia-显卡驱动" class="headerlink" title="安装 nVidia 显卡驱动"></a>安装 nVidia 显卡驱动</h2><p>首先需要确保安装了 nVidia 的驱动，安装方法在此不赘述。<br>如果安装了可以在终端中查看显卡信息，包括支持的 CUDA 最大版本</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">nvidia-smi</span><br></pre></td></tr></table></figure>
+
+<h2 id="安装-CUDA"><a href="#安装-CUDA" class="headerlink" title="安装 CUDA"></a>安装 CUDA</h2><p>在 nVidia 官网选择需要下载的版本，为了兼容 PyTorch 我选择了11.8：<br><a href="https://developer.nvidia.com/cuda-11-8-0-download-archive">https://developer.nvidia.com/cuda-11-8-0-download-archive</a><br>Ubuntu 版官方给出了三种安装方式：deb(local), deb(network), runfile(local)<br>在此推荐使用 runfile，因为 deb 会自动覆盖安装显卡驱动，而 runfile 在安装过程中可以选择是否安装显卡驱动。<br><strong>CUDA 安装包自带的显卡驱动不一定能完美适配你的显卡，故可能带来一些问题，故建议如果当前安装的驱动没明显问题不随意更换驱动</strong><br><strong>在 Ubuntu 的附加驱动上安装显卡驱动可能会导致安装的 CUDA 失效(?)，在安装完CUDA后也不建议随意更换驱动</strong></p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">wget https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run</span><br><span class="line">sudo sh cuda_11.8.0_520.61.05_linux.run</span><br></pre></td></tr></table></figure>
+
+<h2 id="检测-CUDA-安装"><a href="#检测-CUDA-安装" class="headerlink" title="检测 CUDA 安装"></a>检测 CUDA 安装</h2><p>终端中输入</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">nvcc -V</span><br></pre></td></tr></table></figure>
+
+<p>如果正常显示 CUDA 版本等信息则说明安装成功</p>
+<p>如果不显示，也可能只是环境变量未配置，根据 CUDA 的安装目录，在<code>~/.bashrc</code>文件中添加环境变量：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">export PATH=&quot;/usr/local/cuda-11.8/bin:$PATH&quot;</span><br><span class="line">export LD_LIBRARY_PATH=&quot;/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH&quot;</span><br></pre></td></tr></table></figure>
+
+<p>使用<code>source ~/.bashrc</code>刷新环境变量，或者重启终端后再尝试即可</p>
+<h2 id="安装-cuDNN"><a href="#安装-cuDNN" class="headerlink" title="安装 cuDNN"></a>安装 cuDNN</h2><p>在如下链接可以下载历史版本的 cuDNN，需要登录 nVidia账号：<br><a href="https://developer.nvidia.com/rdp/cudnn-archive">https://developer.nvidia.com/rdp/cudnn-archive</a><br>安装方法可以参考官方的文档：<br><a href="https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html">https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html</a></p>
+<p>1.下载所需版本的 Deb 文件</p>
+<p>2.使用 dpkg 安装所得 Deb文件</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo dpkg -i cudnn-local-repo-$&#123;distro&#125;-8.x.x.x_1.0-1_amd64.deb</span><br></pre></td></tr></table></figure>
+
+<p>3.前往&#x2F;var&#x2F;cudnn-local-repo-${distro}-8.x.x.x&#x2F;目录，安装相关库文件</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo dpkg -i libcudnn8_8.x.x.x-1+cudaX.Y_amd64.deb </span><br><span class="line">sudo dpkg -i libcudnn8-dev_8.x.x.x-1+cudaX.Y_amd64.deb </span><br><span class="line">sudo dpkg -i libcudnn8-samples_8.x.x.x-1+cudaX.Y_amd64.deb   </span><br></pre></td></tr></table></figure>
+
+<h2 id="测试-cuDNN-安装"><a href="#测试-cuDNN-安装" class="headerlink" title="测试 cuDNN 安装"></a>测试 cuDNN 安装</h2><figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">cp -r /usr/src/cudnn_samples_v8/ $HOME</span><br><span class="line">cd  $HOME/cudnn_samples_v8/mnistCUDNN</span><br><span class="line">make clean &amp;&amp; make</span><br><span class="line">./mnistCUDNN</span><br></pre></td></tr></table></figure>
+
+<p>在 make 时可能会存在库缺失的报错，这不一定是 cuDNN 的问题。</p>
+<p>例如我在验证时报错：</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">test.c:1:10: fatal error: FreeImage.h: 没有那个文件或目录</span><br><span class="line">    1 | #include &quot;FreeImage.h&quot;</span><br><span class="line">      |          ^~~~~~~~~~~~~</span><br><span class="line">compilation terminated.</span><br><span class="line">&gt;&gt;&gt; WARNING - FreeImage is not set up correctly. Please ensure FreeImage is set up correctly. &lt;&lt;&lt;</span><br></pre></td></tr></table></figure>
+
+<p>解决方案是安装 FreeImage 库就行</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo apt-get update</span><br><span class="line">sudo apt-get install libfreeimage-dev</span><br></pre></td></tr></table></figure>
+
+<p>如果成果安装 cuDNN，最后运行 mnistCUDNN 时最后一行输出</p>
+<figure class="highlight text"><table><tr><td class="code"><pre><span class="line">Test passed!</span><br></pre></td></tr></table></figure>
+]]></content>
+  </entry>
+  <entry>
+    <title>在 Linux 中让 matplotlib 能正常显示中文的一种方式</title>
+    <url>/2023/04/16/202304161811/</url>
+    <content><![CDATA[<p>记录一个实测成功且较为简单的方法。<br> <span id="more"></span></p>
+<h2 id="安装-simhei-ttf-字体"><a href="#安装-simhei-ttf-字体" class="headerlink" title="安装 simhei.ttf 字体"></a>安装 simhei.ttf 字体</h2><p>从 Windows 上拷贝 simhei.ttf 字体，位置：<code>C:/Windows/Fonts/simhei.ttf</code><br>然后安装到 Linux，如果是 GUI 可以直接打开 ttf 文件点击安装</p>
+<p>刷新字体：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo fc-cache -f -v</span><br></pre></td></tr></table></figure>
+
+<h2 id="清除-matplotlib-字体缓存"><a href="#清除-matplotlib-字体缓存" class="headerlink" title="清除 matplotlib 字体缓存"></a>清除 matplotlib 字体缓存</h2><p>查看 matplotlib 字体缓存目录</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="keyword">import</span> matplotlib <span class="keyword">as</span> plt</span><br><span class="line">plt.get_cachedir()</span><br></pre></td></tr></table></figure>
+
+<p>删除该目录，下次使用时就会自动刷新缓存</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">rm -rf /home/xxx/.cache/matplotlib</span><br></pre></td></tr></table></figure>
+
+<h2 id="指定使用字体"><a href="#指定使用字体" class="headerlink" title="指定使用字体"></a>指定使用字体</h2><p>每次使用时在 python 中指定字体，即可正常显示中文</p>
+<figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="keyword">import</span> matplotlib.pyplot <span class="keyword">as</span> plt</span><br><span class="line">plt.rcParams[<span class="string">&#x27;font.sans-serif&#x27;</span>] = [<span class="string">&#x27;SimHei&#x27;</span>]</span><br></pre></td></tr></table></figure>
+]]></content>
+  </entry>
+  <entry>
+    <title>在 WSL2 中安装 MySQL 并通过 Windows 本地连接</title>
+    <url>/2023/04/08/202304081501/</url>
+    <content><![CDATA[<blockquote>
+<p>转载，原文地址:<a href="https://mysteriouspreserve.com/blog/2022/11/06/WSL2-MySQL/">https://mysteriouspreserve.com/blog/2022/11/06/WSL2-MySQL/</a></p>
+</blockquote>
+<p>在 WSL2 上安装的 MySQL 无法在 Windows 上直接由 127.0.0.1 访问，在此记录配置 MySQL 远程连接使得 Windows 的 SQL 管理软件可以直接管理 WSL2 里的 MySQL的方法。<br> <span id="more"></span></p>
+<p>首先开启 WSL2 的 systemd：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">vim /etc/wsl.conf</span><br></pre></td></tr></table></figure>
+
+<p>然后在其中添加如下内容：</p>
+<figure class="highlight ini"><table><tr><td class="code"><pre><span class="line"><span class="section">[boot]</span></span><br><span class="line"><span class="attr">systemd</span>=<span class="literal">true</span></span><br></pre></td></tr></table></figure>
+
+<p>上述也可以用如下指令实现：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">echo -e &quot;[boot]\nsystemd=true&quot; | sudo tee -a /etc/wsl.conf</span><br></pre></td></tr></table></figure>
+
+<p>退出 WSL2，使用 <code>wsl --shutdown</code> 关闭 WSL2</p>
+<p>再次启动 WSL2，安装 MySQL：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo apt install mysql-server</span><br></pre></td></tr></table></figure>
+
+<p>修改 <code>/etc/mysql/mysql.conf.d/mysqld.cnf</code> 中的 <code>bind-address</code> 为 <code>0.0.0.0</code>，使得 MySQL 允许外部访问</p>
+<p>重启 MySQL，并初始化 MySQL：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo /etc/init.d/mysql restart</span><br><span class="line">sudo mysql_secure_installation</span><br></pre></td></tr></table></figure>
+
+<p>进入MySQL，开放外部权限：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo mysql -u root -p</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">use mysql;</span><br><span class="line"><span class="keyword">update</span> <span class="keyword">user</span> <span class="keyword">set</span> host<span class="operator">=</span>&quot;%&quot; <span class="keyword">where</span> <span class="keyword">user</span><span class="operator">=</span>&quot;root&quot;;</span><br></pre></td></tr></table></figure>
+
+<p>最后更改 iptable 防火墙规则并保存：</p>
+<figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo iptables -A INPUT -p tcp -m tcp --dport 3306 -j ACCEPT</span><br><span class="line">sudo iptables-save -c</span><br></pre></td></tr></table></figure>
+
+<p>至此便可以让 Windows 通过本地 127.0.0.1:3306 访问 WSL2 的 MySQL Server</p>
+]]></content>
+  </entry>
+  <entry>
+    <title>数字控制器的离散化设计技术</title>
+    <url>/2023/04/01/202304012225/</url>
+    <content><![CDATA[<h2 id="数字控制器的离散化设计步骤"><a href="#数字控制器的离散化设计步骤" class="headerlink" title="数字控制器的离散化设计步骤"></a>数字控制器的离散化设计步骤</h2><p>计算机控制系统框图如下图所示：</p>
+<p><img src="https://zilchme.github.io/pic/%E8%AE%A1%E7%AE%97%E6%9C%BA%E6%8E%A7%E5%88%B6%E7%B3%BB%E7%BB%9F%E6%A1%86%E5%9B%BE.png" alt="计算机控制系统框图"><br>可得其闭环脉冲函数为：<br>$$<br>\Phi(z)&#x3D;\frac{D(z) G(z)}{1+D(z) G(z)}<br>$$<br>其中，$G(z)&#x3D;Z[H(s)G_c(s)]$，为控制对象加上零阶保持器后的离散化。<br><br>反推可知：<br>$$<br>D(z)&#x3D;\frac{\Phi(z)}{G(z)(1-\Phi(z))}&#x3D;\frac{\Phi(z)}{G(z) \Phi_e(z)}<br>$$<br>设计最少拍控制器，通常根据性能要求和约束条件确定所需的$\Phi(z)$和$\Phi_e(z)$，再得到$D(z)$。<br> <span id="more"></span></p>
+<h2 id="最少拍有纹波控制器的设计"><a href="#最少拍有纹波控制器的设计" class="headerlink" title="最少拍有纹波控制器的设计"></a>最少拍有纹波控制器的设计</h2><h3 id="设计原理"><a href="#设计原理" class="headerlink" title="设计原理"></a>设计原理</h3><p>根据终值定理可求出系统的稳态误差：<br>$$<br>\begin{aligned}<br>e(\infty) &amp; &#x3D;\lim <em>{z \rightarrow 1}\left(1-z^{-1}\right) E(z)&#x3D;\lim</em>{z \rightarrow 1}\left(1-z^{-1}\right) R(z) \Phi_e(z) \<br>&amp; &#x3D;\lim _{z \rightarrow 1}\left(1-z^{-1}\right) \frac{B(z)}{\left(1-z^{-1}\right)^q} \Phi_e(z)<br>\end{aligned}<br>$$<br>我们希望稳态误差为0，且过渡过程步数最少，于是我们从中可以得到如下结论：</p>
+<ol>
+<li>$\Phi_e(z)$的设计与$R(z)$的阶次相关，并且我们要抵消其在$z&#x3D;1$上的极点，即$\Phi_e(z)$要包含$\left(1-z^{-1}\right)^q$</li>
+<li>为了步数最少，$\Phi_e(z)$中其他关于$z^{-1}$的幂次要尽可能低</li>
+</ol>
+<p>此外，我们还需要考虑$D(z)$的<strong>可实现性问题和稳定性问题</strong>：</p>
+<ul>
+<li><strong>可实现性</strong><br>$D(z)$中不能含有超前环节，即分母阶次大于等于分子，设计时若广义脉冲传递函数$G(z)$的分母比分子高N阶，则确定$\Phi(z)$时必须至少分母比分子高N阶;若被控对象有滞后特性，$\Phi(z)$中必须含有纯滞后，且滞后时间至少要等于被控对象的滞后时间。</li>
+<li><strong>稳定性</strong><br>最小拍系统的设计前提是$G(z)$在单位圆上或圆外没有零极点，或能被$\Phi(z)$及$\Phi_e(z)$补偿，即：<ul>
+<li>$\Phi_e(z)$的零点中，必须包含$G(z)$在<strong>单位圆上或圆外</strong>的所有极点；</li>
+<li>$\Phi(z)$的零点中，必须包含$G(z)$在<strong>单位圆上或圆外</strong>的所有零点；</li>
+</ul>
+</li>
+</ul>
+<h3 id="设计方法"><a href="#设计方法" class="headerlink" title="设计方法"></a>设计方法</h3><p>综上所述，可以总结出设计最少拍有纹波控制器的一般步骤(应试):</p>
+<ol>
+<li>求取广义对象的脉冲传递函数$G(z)&#x3D;Z[H(s)G_c(s)]$</li>
+<li>依据$R(z)$的阶次和$G(z)$的零极点分布确定$\Phi_e(z)$和$\Phi(z)$和的形式。由$\Phi(z)&#x3D;1-\Phi_e(z)$，比较系数法得到$\Phi_e(z)$和$\Phi(z)$</li>
+<li>得到调节模型<br>$$D(z)&#x3D;\frac{\Phi(z)}{G(z) \Phi_e(z)}$$</li>
+</ol>
+<h2 id="最少拍无纹波控制器的设计"><a href="#最少拍无纹波控制器的设计" class="headerlink" title="最少拍无纹波控制器的设计"></a>最少拍无纹波控制器的设计</h2><h3 id="为什么会有纹波"><a href="#为什么会有纹波" class="headerlink" title="为什么会有纹波"></a>为什么会有纹波</h3><p>纹波的产生在于控制信号$u(k)$无法在有限个周期内达到稳态，经过采样后给被控对象$G_c(s)$的控制信号$u(t)$无法达到稳态，使得输出产生纹波。</p>
+<h3 id="系统无纹波的要求"><a href="#系统无纹波的要求" class="headerlink" title="系统无纹波的要求"></a>系统无纹波的要求</h3><p>显然，无纹波最小拍系统要求$U(z)$为$z^{-1}$的有限多项式<br>$$U(z)&#x3D;E(z)D(z)&#x3D;D(z)\Phi_e(z)R(z)$$<br>在设计最小拍系统时，已经保证了$\Phi_e(z)$的零点完全对消$R(z)$的极点<br><br>又有：<br>$$D(z)\Phi_e(z)&#x3D;\frac{\Phi(z)}{G(z)}$$<br>故只需保证$\Phi(z)$的零点完全对消$G(z)$的零点即可。</p>
+<p><strong>综上所述，设计无纹波系统时，只需在有纹波系统的条件下附加一条：</strong></p>
+<ul>
+<li>$\Phi(z)$的零点<strong>完全对消</strong>$G(z)$的零点</li>
+</ul>
+]]></content>
+  </entry>
+</search>

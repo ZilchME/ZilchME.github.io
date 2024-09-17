@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 7.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/dead-fish.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/dead-fish.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/dead-fish.png">
+  <link rel="mask-icon" href="/images/dead-fish.png" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"mac"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="在数据处理时有时会用到像是如下所示的代码，初次了解时会比较迷惑。 1day_of_year &#x3D; pd.to_datetime(pumpkins[&#x27;Date&#x27;]).apply(lambda dt: (dt - datetime(dt.year, 1, 1)).days)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="python 中 map 与 lambad 的应用">
+<meta property="og:url" content="http://example.com/2023/07/27/202307271830/index.html">
+<meta property="og:site_name" content="未知领域">
+<meta property="og:description" content="在数据处理时有时会用到像是如下所示的代码，初次了解时会比较迷惑。 1day_of_year &#x3D; pd.to_datetime(pumpkins[&#x27;Date&#x27;]).apply(lambda dt: (dt - datetime(dt.year, 1, 1)).days)">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-07-27T10:29:52.000Z">
+<meta property="article:modified_time" content="2023-07-27T10:50:17.000Z">
+<meta property="article:author" content="Danny Lee">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2023/07/27/202307271830/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>python 中 map 与 lambad 的应用 | 未知领域</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">未知领域</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2023/07/27/202307271830/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="https://avatars.githubusercontent.com/u/82753601?v=4">
+      <meta itemprop="name" content="Danny Lee">
+      <meta itemprop="description" content="摸了">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="未知领域">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          python 中 map 与 lambad 的应用
+        </h1>
+
+        <div class="post-meta">
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2023-07-27 18:29:52 / 修改时间：18:50:17" itemprop="dateCreated datePublished" datetime="2023-07-27T18:29:52+08:00">2023-07-27</time>
+            </span>
+
+          <br>
+            <span class="post-meta-item" title="本文字数">
+              <span class="post-meta-item-icon">
+                <i class="far fa-file-word"></i>
+              </span>
+                <span class="post-meta-item-text">本文字数：</span>
+              <span>2.3k</span>
+            </span>
+            <span class="post-meta-item" title="阅读时长">
+              <span class="post-meta-item-icon">
+                <i class="far fa-clock"></i>
+              </span>
+                <span class="post-meta-item-text">阅读时长 &asymp;</span>
+              <span>2 分钟</span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>在数据处理时有时会用到像是如下所示的代码，初次了解时会比较迷惑。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">day_of_year = pd.to_datetime(pumpkins[<span class="string">&#x27;Date&#x27;</span>]).apply(<span class="keyword">lambda</span> dt: (dt - datetime(dt.year, <span class="number">1</span>, <span class="number">1</span>)).days)</span><br></pre></td></tr></table></figure>
+
+ <span id="more"></span>
+
+<h2 id="Lambda-表达式"><a href="#Lambda-表达式" class="headerlink" title="Lambda 表达式"></a>Lambda 表达式</h2><p>Lambda表达式是一种匿名函数，也称为”匿名函数”或” Lambda 函数”。它是一种简洁的方式来定义简单的函数，通常用于函数式编程范式中。</p>
+<p>在 Python 中，Lambda 表达式的语法如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">lambda</span> arguments: expression</span><br></pre></td></tr></table></figure>
+
+<p>其中，<code>lambda</code>是关键字，<code>arguments</code>是输入参数，可以是零个或多个，用逗号分隔，而<code>expression</code>是函数体，即函数的计算逻辑。Lambda 函数可以接受任意数量的参数，但它只能包含一个表达式。</p>
+<p>Lambda表达式具有以下特点：</p>
+<ol>
+<li><p>匿名性：Lambda 函数是匿名的，它没有命名，因此通常用于简单的临时操作，而不是为复杂的功能定义命名函数。</p>
+</li>
+<li><p>简洁性：Lambda 表达式的语法非常简洁，适合用于单行函数的定义，以及需要传递函数作为参数的情况。</p>
+</li>
+<li><p>返回值：Lambda 函数会自动返回表达式的计算结果，无需使用<code>return</code>关键字。</p>
+</li>
+</ol>
+<p>使用 Lambda 表达式的常见场景包括：</p>
+<ul>
+<li>作为参数传递给高阶函数，例如<code>map()</code>、<code>filter()</code>和<code>sorted()</code>等。</li>
+<li>用于定义简单的转换或过滤逻辑，以替代定义完整的命名函数。</li>
+</ul>
+<h2 id="map-函数"><a href="#map-函数" class="headerlink" title="map() 函数"></a><code>map()</code> 函数</h2><p><code>map()</code>函数是 Python 内置函数之一，它用于将一个函数应用于给定的可迭代对象（如列表、元组等）的所有元素，生成一个新的可迭代对象，其中包含经过函数处理后的结果。</p>
+<p><code>map()</code>函数的语法如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">map</span>(function, iterable, ...)</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><code>function</code>：这是一个函数，可以是 Python 内置函数、自定义函数或 Lambda 表达式。<code>map()</code>将这个函数应用于<code>iterable</code>中的每个元素。</p>
+</li>
+<li><p><code>iterable</code>：这是一个可迭代对象，如列表、元组、集合等。<code>map()</code>会对<code>iterable</code>中的每个元素都调用<code>function</code>进行处理。</p>
+</li>
+</ul>
+<p><code>map()</code>函数会返回一个<code>map</code>对象，它是一个惰性求值的对象，意味着在实际需要结果时才会计算并返回。要将<code>map</code>对象转换为列表或其他类型的可迭代对象，可以使用<code>list()</code>、<code>tuple()</code>等函数进行转换。</p>
+<h2 id="举例"><a href="#举例" class="headerlink" title="举例"></a>举例</h2><p>1.使用 Lambda 表达式对列表中的元素进行平方操作：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">numbers = [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]</span><br><span class="line">squared_numbers = <span class="built_in">list</span>(<span class="built_in">map</span>(<span class="keyword">lambda</span> x: x ** <span class="number">2</span>, numbers))</span><br><span class="line"><span class="built_in">print</span>(squared_numbers)  <span class="comment"># 输出: [1, 4, 9, 16, 25]</span></span><br></pre></td></tr></table></figure>
+
+<p>2.使用 Lambda 表达式对列表中的偶数进行过滤：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">numbers = [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>]</span><br><span class="line">even_numbers = <span class="built_in">list</span>(<span class="built_in">filter</span>(<span class="keyword">lambda</span> x: x % <span class="number">2</span> == <span class="number">0</span>, numbers))</span><br><span class="line"><span class="built_in">print</span>(even_numbers)  <span class="comment"># 输出: [2, 4, 6, 8, 10]</span></span><br></pre></td></tr></table></figure>
+
+<p>3.使用 Lambda 表达式定义一个简单的计算器函数：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 定义一个简单的计算器函数，接受操作符和两个操作数，并执行相应的操作</span></span><br><span class="line">calculator = <span class="keyword">lambda</span> op, a, b: a + b <span class="keyword">if</span> op == <span class="string">&#x27;+&#x27;</span> <span class="keyword">else</span> a - b <span class="keyword">if</span> op == <span class="string">&#x27;-&#x27;</span> <span class="keyword">else</span> a * b</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(calculator(<span class="string">&#x27;+&#x27;</span>, <span class="number">5</span>, <span class="number">3</span>))  <span class="comment"># 输出: 8</span></span><br><span class="line"><span class="built_in">print</span>(calculator(<span class="string">&#x27;-&#x27;</span>, <span class="number">10</span>, <span class="number">4</span>))  <span class="comment"># 输出: 6</span></span><br><span class="line"><span class="built_in">print</span>(calculator(<span class="string">&#x27;*&#x27;</span>, <span class="number">2</span>, <span class="number">6</span>))  <span class="comment"># 输出: 12</span></span><br></pre></td></tr></table></figure>
+
+<p>在最开始的例子中，<code>apply()</code>函数的作用类似于<code>map()</code></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">day_of_year = pd.to_datetime(pumpkins[<span class="string">&#x27;Date&#x27;</span>]).apply(<span class="keyword">lambda</span> dt: (dt - datetime(dt.year, <span class="number">1</span>, <span class="number">1</span>)).days)</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li><p><code>pd.to_datetime(pumpkins[&#39;Date&#39;])</code>: 这部分代码将<code>pumpkins</code> DataFrame中的’Date’列转换为pandas中的日期时间格式。<code>pd.to_datetime()</code>是pandas的一个函数，它将给定的日期字符串转换为日期时间对象，这样可以在之后进行日期的计算和处理。</p>
+</li>
+<li><p><code>apply(lambda dt: (dt - datetime(dt.year, 1, 1)).days)</code>: 这是对转换后的日期时间对象进行操作。<code>apply()</code>是pandas DataFrame对象的一个方法，它允许我们对DataFrame的每个元素应用一个函数。在这里，我们使用了一个lambda函数来计算每个日期在一年中的第几天。</p>
+<ul>
+<li><p><code>lambda dt: (dt - datetime(dt.year, 1, 1))</code>: 这个lambda函数接受一个日期时间对象<code>dt</code>作为输入，并计算该日期时间对象与当年1月1日之间的时间差，得到一个<code>timedelta</code>对象。这个时间差表示该日期距离当年的1月1日有多少天。</p>
+</li>
+<li><p><code>.days</code>: <code>timedelta</code>对象有一个属性<code>.days</code>，表示该时间差的天数部分。</p>
+</li>
+</ul>
+</li>
+</ol>
+<p>因此，整个代码的目的是将<code>pumpkins</code> DataFrame中的’Date’列转换为日期时间格式，然后计算每个日期在一年中的第几天，并将结果保存在名为<code>day_of_year</code>的新列中。这样可以方便地了解每个日期在一年中的位置，用于后续的时间分析和处理。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/07/24/202307241655/" rel="prev" title="在 Ubuntu 上安装 CUDA 及 cuDNN">
+      <i class="fa fa-chevron-left"></i> 在 Ubuntu 上安装 CUDA 及 cuDNN
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2023/08/02/202308021051/" rel="next" title="在 Ubuntu 20.04 上安装 fcitx5">
+      在 Ubuntu 20.04 上安装 fcitx5 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Lambda-%E8%A1%A8%E8%BE%BE%E5%BC%8F"><span class="nav-number">1.</span> <span class="nav-text">Lambda 表达式</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#map-%E5%87%BD%E6%95%B0"><span class="nav-number">2.</span> <span class="nav-text">map() 函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%BE%E4%BE%8B"><span class="nav-number">3.</span> <span class="nav-text">举例</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Danny Lee"
+      src="https://avatars.githubusercontent.com/u/82753601?v=4">
+  <p class="site-author-name" itemprop="name">Danny Lee</p>
+  <div class="site-description" itemprop="description">摸了</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">9</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/yourname" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;yourname" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 2023 – 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Danny Lee</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-chart-area"></i>
+    </span>
+      <span class="post-meta-item-text">站点总字数：</span>
+    <span title="站点总字数">15k</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-coffee"></i>
+    </span>
+      <span class="post-meta-item-text">站点阅读时长 &asymp;</span>
+    <span title="站点阅读时长">14 分钟</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script size="300" alpha="0.6" zIndex="-1" src="/lib/canvas-ribbon/canvas-ribbon.js"></script>
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>
