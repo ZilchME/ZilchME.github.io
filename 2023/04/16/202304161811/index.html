@@ -28,7 +28,7 @@
 <meta property="og:description" content="记录一个实测成功且较为简单的方法。">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2023-04-16T10:11:16.000Z">
-<meta property="article:modified_time" content="2024-09-17T14:36:41.480Z">
+<meta property="article:modified_time" content="2025-05-08T07:30:44.466Z">
 <meta property="article:author" content="Danny Lee">
 <meta name="twitter:card" content="summary">
 
@@ -209,7 +209,7 @@
                   <i class="far fa-calendar-check"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2024-09-17 22:36:41" itemprop="dateModified" datetime="2024-09-17T22:36:41+08:00">2024-09-17</time>
+                <time title="修改时间：2025-05-08 15:30:44" itemprop="dateModified" datetime="2025-05-08T15:30:44+08:00">2025-05-08</time>
               </span>
 
           <br>
@@ -218,7 +218,7 @@
                 <i class="far fa-file-word"></i>
               </span>
                 <span class="post-meta-item-text">本文字数：</span>
-              <span>390</span>
+              <span>477</span>
             </span>
             <span class="post-meta-item" title="阅读时长">
               <span class="post-meta-item-icon">
@@ -238,9 +238,15 @@
 
       
         <p>记录一个实测成功且较为简单的方法。<br> <span id="more"></span></p>
-<h2 id="安装-simhei-ttf-字体"><a href="#安装-simhei-ttf-字体" class="headerlink" title="安装 simhei.ttf 字体"></a>安装 simhei.ttf 字体</h2><p>从 Windows 上拷贝 simhei.ttf 字体，位置：<code>C:/Windows/Fonts/simhei.ttf</code><br>然后安装到 Linux，如果是 GUI 可以直接打开 ttf 文件点击安装</p>
+<h2 id="安装-simhei-ttf-字体"><a href="#安装-simhei-ttf-字体" class="headerlink" title="安装 simhei.ttf 字体"></a>安装 simhei.ttf 字体</h2><p>从 Windows 上拷贝 simhei.ttf 字体，位置：<code>C:/Windows/Fonts/simhei.ttf</code><br>然后安装到 Linux</p>
+<p>如果是 GUI 可以直接打开 ttf 文件点击安装</p>
+<p>如果是命令行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p ~/.fonts</span><br><span class="line"><span class="built_in">cp</span> simhei.ttf ~/.fonts/</span><br></pre></td></tr></table></figure>
+
 <p>刷新字体：</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo fc-cache -f -v</span><br></pre></td></tr></table></figure>
+
+<h2 id="验证字体是否安装成功"><a href="#验证字体是否安装成功" class="headerlink" title="验证字体是否安装成功"></a>验证字体是否安装成功</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">fc-list | grep -i <span class="string">&quot;simhei&quot;</span></span><br></pre></td></tr></table></figure>
 
 <h2 id="清除-matplotlib-字体缓存"><a href="#清除-matplotlib-字体缓存" class="headerlink" title="清除 matplotlib 字体缓存"></a>清除 matplotlib 字体缓存</h2><p>查看 matplotlib 字体缓存目录</p>
 <figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> matplotlib <span class="keyword">as</span> plt</span><br><span class="line">plt.get_cachedir()</span><br></pre></td></tr></table></figure>
@@ -330,7 +336,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%89%E8%A3%85-simhei-ttf-%E5%AD%97%E4%BD%93"><span class="nav-number">1.</span> <span class="nav-text">安装 simhei.ttf 字体</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B8%85%E9%99%A4-matplotlib-%E5%AD%97%E4%BD%93%E7%BC%93%E5%AD%98"><span class="nav-number">2.</span> <span class="nav-text">清除 matplotlib 字体缓存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8C%87%E5%AE%9A%E4%BD%BF%E7%94%A8%E5%AD%97%E4%BD%93"><span class="nav-number">3.</span> <span class="nav-text">指定使用字体</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%89%E8%A3%85-simhei-ttf-%E5%AD%97%E4%BD%93"><span class="nav-number">1.</span> <span class="nav-text">安装 simhei.ttf 字体</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%AA%8C%E8%AF%81%E5%AD%97%E4%BD%93%E6%98%AF%E5%90%A6%E5%AE%89%E8%A3%85%E6%88%90%E5%8A%9F"><span class="nav-number">2.</span> <span class="nav-text">验证字体是否安装成功</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B8%85%E9%99%A4-matplotlib-%E5%AD%97%E4%BD%93%E7%BC%93%E5%AD%98"><span class="nav-number">3.</span> <span class="nav-text">清除 matplotlib 字体缓存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%8C%87%E5%AE%9A%E4%BD%BF%E7%94%A8%E5%AD%97%E4%BD%93"><span class="nav-number">4.</span> <span class="nav-text">指定使用字体</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
@@ -379,7 +385,7 @@
 <div class="copyright">
   
   &copy; 2023 – 
-  <span itemprop="copyrightYear">2024</span>
+  <span itemprop="copyrightYear">2025</span>
   <span class="with-love">
     <i class="fa fa-heart"></i>
   </span>

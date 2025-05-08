@@ -300,9 +300,15 @@
     <title>在 Linux 中让 matplotlib 能正常显示中文的一种方式</title>
     <url>/2023/04/16/202304161811/</url>
     <content><![CDATA[<p>记录一个实测成功且较为简单的方法。<br> <span id="more"></span></p>
-<h2 id="安装-simhei-ttf-字体"><a href="#安装-simhei-ttf-字体" class="headerlink" title="安装 simhei.ttf 字体"></a>安装 simhei.ttf 字体</h2><p>从 Windows 上拷贝 simhei.ttf 字体，位置：<code>C:/Windows/Fonts/simhei.ttf</code><br>然后安装到 Linux，如果是 GUI 可以直接打开 ttf 文件点击安装</p>
+<h2 id="安装-simhei-ttf-字体"><a href="#安装-simhei-ttf-字体" class="headerlink" title="安装 simhei.ttf 字体"></a>安装 simhei.ttf 字体</h2><p>从 Windows 上拷贝 simhei.ttf 字体，位置：<code>C:/Windows/Fonts/simhei.ttf</code><br>然后安装到 Linux</p>
+<p>如果是 GUI 可以直接打开 ttf 文件点击安装</p>
+<p>如果是命令行：</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p ~/.fonts</span><br><span class="line"><span class="built_in">cp</span> simhei.ttf ~/.fonts/</span><br></pre></td></tr></table></figure>
+
 <p>刷新字体：</p>
 <figure class="highlight shell"><table><tr><td class="code"><pre><span class="line">sudo fc-cache -f -v</span><br></pre></td></tr></table></figure>
+
+<h2 id="验证字体是否安装成功"><a href="#验证字体是否安装成功" class="headerlink" title="验证字体是否安装成功"></a>验证字体是否安装成功</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">fc-list | grep -i <span class="string">&quot;simhei&quot;</span></span><br></pre></td></tr></table></figure>
 
 <h2 id="清除-matplotlib-字体缓存"><a href="#清除-matplotlib-字体缓存" class="headerlink" title="清除 matplotlib 字体缓存"></a>清除 matplotlib 字体缓存</h2><p>查看 matplotlib 字体缓存目录</p>
 <figure class="highlight python"><table><tr><td class="code"><pre><span class="line"><span class="keyword">import</span> matplotlib <span class="keyword">as</span> plt</span><br><span class="line">plt.get_cachedir()</span><br></pre></td></tr></table></figure>
