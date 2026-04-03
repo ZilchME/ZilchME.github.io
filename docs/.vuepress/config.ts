@@ -21,7 +21,7 @@ export default defineUserConfig({
 
   head: [
     // 配置站点图标
-    ['link', { rel: 'icon', type: 'image/png', href: 'https://theme-plume.vuejs.press/favicon-32x32.png' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/dead-fish.png' }],
   ],
 
   bundler: viteBundler(),
@@ -84,13 +84,15 @@ export default defineUserConfig({
     // },
 
     /* 文章字数统计、阅读时间，设置为 false 则禁用 */
-    // readingTime: true,
+    readingTime: {
+      wordPerMinute: 300
+    },
 
     /**
      * markdown
      * @see https://theme-plume.vuejs.press/config/markdown/
      */
-    // markdown: {
+    markdown: {
     //   abbr: true,         // 启用 abbr 语法  *[label]: content
     //   annotation: true,   // 启用 annotation 语法  [+label]: content
     //   pdf: true,          // 启用 PDF 嵌入 @[pdf](/xxx.pdf)
@@ -115,22 +117,22 @@ export default defineUserConfig({
     //     kotlin: true,     // ::: kotlin-repl
     //     python: true,     // ::: python-repl
     //   },
-    //   math: {             // 启用数学公式
-    //     type: 'katex',
-    //   },
+      math: {             // 启用数学公式
+        type: 'katex',
+      },
     //   chartjs: true,      // 启用 chart.js
     //   echarts: true,      // 启用 ECharts
     //   mermaid: true,      // 启用 mermaid
     //   flowchart: true,    // 启用 flowchart
-    //   image: {
+      image: {
     //     figure: true,     // 启用 figure
-    //     lazyload: true,   // 启用图片懒加载
+        lazyload: true,   // 启用图片懒加载
     //     mark: true,       // 启用图片标记
     //     size: true,       // 启用图片大小
-    //   },
+      },
     //   include: true,      // 在 Markdown 文件中导入其他 markdown 文件内容
-    //   imageSize: 'local', // 启用 自动填充 图片宽高属性，避免页面抖动
-    // },
+      imageSize: 'local', // 启用 自动填充 图片宽高属性，避免页面抖动
+    },
 
     /**
      * 水印
@@ -142,17 +144,17 @@ export default defineUserConfig({
      * 评论 comments
      * @see https://theme-plume.vuejs.press/guide/features/comments/
      */
-    // comment: {
-    //   provider: '', // "Artalk" | "Giscus" | "Twikoo" | "Waline"
-    //   comment: true,
-    //   repo: '',
-    //   repoId: '',
-    //   category: '',
-    //   categoryId: '',
+    comment: {
+      provider: 'Giscus', // "Artalk" | "Giscus" | "Twikoo" | "Waline"
+      comment: true,
+      repo: 'ZilchME/ZilchME.github.io',
+      repoId: 'R_kgDOJMvCDA',
+      category: 'Announcements',
+      categoryId: 'DIC_kwDOJMvCDM4C58yB"',
     //   mapping: 'pathname',
     //   reactionsEnabled: true,
     //   inputPosition: 'top',
-    // },
+    },
 
     /**
      * 资源链接替换
