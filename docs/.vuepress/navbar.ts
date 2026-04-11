@@ -16,8 +16,9 @@ export default defineNavbarConfig([
   },
   { text: '标签', link: '/blog/tags/', icon: 'material-symbols:label' },
   { text: '归档', link: '/blog/archives/', icon: 'material-symbols:archive' },
-  // {
-  //   text: '笔记',
-  //   items: [{ text: '示例', link: '/demo/README.md' }]
-  // },
+  {
+    text: '笔记',
+    icon: 'material-symbols:note-stack',
+    items: [{ text: 'Skill', link: '/skill/', icon: 'material-symbols:extension' }]
+  },
 ])
