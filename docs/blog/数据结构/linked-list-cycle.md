@@ -25,7 +25,7 @@ permalink: /blog/s3jn3cjb/
 <p><img src="https://assets.leetcode.com/uploads/2018/12/07/circularlinkedlist.png" /></p>
 
 <pre>
-<strong>输入：</strojng>head = [3,2,0,-4], pos = 1
+<strong>输入：</strong>head = [3,2,0,-4], pos = 1
 <strong>输出：</strong>返回索引为 1 的链表节点
 <strong>解释：</strong>链表中有一个环，其尾部连接到第二个节点。
 </pre>
