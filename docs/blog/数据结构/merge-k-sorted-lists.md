@@ -1,5 +1,8 @@
 ---
 title: 合并 K 个升序链表
+tags:
+  - 数据结构
+  - 链表
 createTime: 2026/04/18 01:24:38
 permalink: /blog/eomjspnx/
 ---
@@ -79,7 +82,7 @@ class Solution {
 }
 ```
 
-## 解法二：并归
+## 解法二：归并
 
 每次对链表进行两两合并，共合并log(n)次
 

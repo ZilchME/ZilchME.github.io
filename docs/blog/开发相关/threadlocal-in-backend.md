@@ -1,5 +1,8 @@
 ---
 title: ThreadLocal 在后端开发的使用场景
+tags:
+  - Java
+  - 多线程
 createTime: 2026/04/11 15:20:34
 permalink: /blog/ofpnpou0/
 ---
