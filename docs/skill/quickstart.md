@@ -2,19 +2,14 @@
 title: 快速入门
 createTime: 2026/04/09 21:43:49
 permalink: /skill/snuzydmv/
-sourceTitle: Agent Skills Documentation
-sourceUrl: https://agentskills.org/
-sourceRepo: https://github.com/agentskills/agentskills
-sourceAuthor: Agent Skills contributors
-sourceLicense: 见原始项目说明
-translation: zh-CN
-translationBy: zilch
-translationDate: 2026-04-11
-translationNote: 本文为转载汉化，术语与格式可能有调整，具体以原文为准。
+copyright:
+  creation: translate
+  author:
+    name: Anthropic
+    url: https://anthropic.com/
+  license: CC-BY-4.0
+  source: https://agentskills.io/skill-creation/quickstart
 ---
-
-> [!info]
-> 转载与汉化声明：本文基于 Agent Skills 官方文档内容整理翻译。原始来源：https://agentskills.org/ ，项目仓库：https://github.com/agentskills/agentskills 。版权与许可归原作者或项目方所有，本文仅作学习与技术交流；如与原文有差异，请以原文为准。
 
 > 创建你的第一个 Agent Skill，并在 VS Code 中看到它的运行效果。
 
