@@ -5,9 +5,14 @@ tags:
     - MySQL
 createTime: 2023/04/08 15:01:42
 permalink: /blog/zw7wkfdr/
+copyright:
+  creation: reprint
+  license: CC-BY-SA-4.0
+  source: https://mysteriouspreserve.com/blog/2022/11/06/WSL2-MySQL/
+  author:
+    name: Yexuan Xiao
+    url: https://github.com/YexuanXiao
 ---
-
-> 转载，原文地址:<https://mysteriouspreserve.com/blog/2022/11/06/WSL2-MySQL/>
 
 在 WSL2 上安装的 MySQL 无法在 Windows 上直接由 127.0.0.1 访问，在此记录配置 MySQL 远程连接使得 Windows 的 SQL 管理软件可以直接管理 WSL2 里的 MySQL的方法。
 

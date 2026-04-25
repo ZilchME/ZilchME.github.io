@@ -1,5 +1,7 @@
 ---
 title: 为什么不建议直接 select *
+tags:
+  - SQL
 createTime: 2026/04/23 16:30:33
 permalink: /blog/3uhk6rao/
 ---

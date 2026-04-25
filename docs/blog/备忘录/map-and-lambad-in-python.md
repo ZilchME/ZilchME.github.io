@@ -1,7 +1,7 @@
 ---
-title: python 中 map 与 lambad 的应用
+title: Python 中 map 与 lambad 的应用
 tags:
-    - python
+  - Python
 createTime: 2023/07/27 18:29:52
 permalink: /blog/hma0zl40/
 ---
