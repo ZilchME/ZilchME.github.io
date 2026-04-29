@@ -58,6 +58,9 @@ permalink: /blog/eomjspnx/
 
 扩展合并两个有序链表的情况，存在 n 个链表时，每次求当前最小值的比较时间为 `O(n)`，可以使用小顶堆优化至 `O(logn)`
 
+::: code-tabs
+@tab Java
+
 ```java
 class Solution {
     public ListNode mergeKLists(ListNode[] lists) {
@@ -82,9 +85,14 @@ class Solution {
 }
 ```
 
+:::
+
 ## 解法二：归并
 
 每次对链表进行两两合并，共合并log(n)次
+
+::: code-tabs
+@tab Java
 
 ```java
 class Solution {
@@ -119,3 +127,5 @@ class Solution {
     }
 }
 ```
+
+:::

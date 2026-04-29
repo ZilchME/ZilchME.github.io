@@ -53,6 +53,9 @@ permalink: /blog/p469vbx4/
 
 ## 解题代码
 
+::: code-tabs
+@tab Java
+
 ```java
 class Solution {
     public List<List<String>> solveNQueens(int n) {
@@ -92,3 +95,5 @@ class Solution {
     }
 }
 ```
+
+:::

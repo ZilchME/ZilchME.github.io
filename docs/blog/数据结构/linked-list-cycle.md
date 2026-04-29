@@ -76,6 +76,9 @@ permalink: /blog/s3jn3cjb/
 
 ## 解题代码
 
+::: code-tabs
+@tab Java
+
 ```java
 public class Solution {
     public ListNode detectCycle(ListNode head) {
@@ -97,3 +100,5 @@ public class Solution {
     }
 }
 ```
+
+:::

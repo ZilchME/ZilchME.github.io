@@ -44,16 +44,19 @@ permalink: /blog/myzlxams/
 <p><strong>提示：</strong></p>
 
 <ul>
-	<li><code>1 &lt;= nums.length &lt;= 5000</code></li>
-	<li><code>-10<sup>4</sup> &lt;= nums[i] &lt;= 10<sup>4</sup></code></li>
-	<li><code>nums</code> 中的每个值都 <strong>独一无二</strong></li>
-	<li>题目数据保证 <code>nums</code> 在预先未知的某个下标上进行了旋转</li>
-	<li><code>-10<sup>4</sup> &lt;= target &lt;= 10<sup>4</sup></code></li>
+ <li><code>1 &lt;= nums.length &lt;= 5000</code></li>
+ <li><code>-10<sup>4</sup> &lt;= nums[i] &lt;= 10<sup>4</sup></code></li>
+ <li><code>nums</code> 中的每个值都 <strong>独一无二</strong></li>
+ <li>题目数据保证 <code>nums</code> 在预先未知的某个下标上进行了旋转</li>
+ <li><code>-10<sup>4</sup> &lt;= target &lt;= 10<sup>4</sup></code></li>
 </ul>
 
 ## 解法一：两次二分查找
 
 先按照 [寻找旋转排序数组中的最小值](./find-minimum-in-rotated-sorted-array.md) 的思路找出分界点，确定要查找的值位于左半边还是右半边，再使用一次二分查找找出目标值。
+
+::: code-tabs
+@tab Java
 
 ```java
 class Solution {
@@ -93,11 +96,16 @@ class Solution {
 }
 ```
 
+:::
+
 ## 解法二：一次二分查找
 
 将解法一两次二分合并，大体思路为，在不同侧时，转向 `target` 所在侧查找，相同侧时，依据 `nums[mid]` 与 `target` 大小关系查找。
 
 > 写法需要一定时间思考，面试时优先考虑方法一吧
+
+::: code-tabs
+@tab Java
 
 ```java
 class Solution {
@@ -132,3 +140,5 @@ class Solution {
 来源：力扣（LeetCode）
 著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
 ```
+
+:::

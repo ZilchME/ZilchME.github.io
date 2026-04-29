@@ -78,6 +78,9 @@ $n=2 \times 10^5$，直接排序所有 $O(n^2)$ 个值是不可能的
 
 ### 解题代码（ACM模式）
 
+::: code-tabs
+@tab Java
+
 ```java
 import java.io.*;
 import java.util.*;
@@ -143,6 +146,8 @@ public class Main {
     }
 }
 ```
+
+:::
 
 - 时间复杂度：$O(n \log(\text{max\_val}))$，其中 $\text{max\_val}$ 为 $f(1, n)$ 的最大值），此题中约为 $2 \times 10^{16}$。
 

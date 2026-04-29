@@ -11,8 +11,8 @@ permalink: /blog/ovvcr4gy/
 
 已知一个长度为 <code>n</code> 的数组，预先按照升序排列，经由 <code>1</code> 到 <code>n</code> 次 <strong>旋转</strong> 后，得到输入数组。例如，原数组 <code>nums = [0,1,2,4,5,6,7]</code> 在变化后可能得到：
 <ul>
-	<li>若旋转 <code>4</code> 次，则可以得到 <code>[4,5,6,7,0,1,2]</code></li>
-	<li>若旋转 <code>7</code> 次，则可以得到 <code>[0,1,2,4,5,6,7]</code></li>
+ <li>若旋转 <code>4</code> 次，则可以得到 <code>[4,5,6,7,0,1,2]</code></li>
+ <li>若旋转 <code>7</code> 次，则可以得到 <code>[0,1,2,4,5,6,7]</code></li>
 </ul>
 
 <p>注意，数组 <code>[a[0], a[1], a[2], ..., a[n-1]]</code> <strong>旋转一次</strong> 的结果为数组 <code>[a[n-1], a[0], a[1], a[2], ..., a[n-2]]</code> 。</p>
@@ -52,11 +52,11 @@ permalink: /blog/ovvcr4gy/
 <p><strong>提示：</strong></p>
 
 <ul>
-	<li><code>n == nums.length</code></li>
-	<li><code>1 &lt;= n &lt;= 5000</code></li>
-	<li><code>-5000 &lt;= nums[i] &lt;= 5000</code></li>
-	<li><code>nums</code> 中的所有整数 <strong>互不相同</strong></li>
-	<li><code>nums</code> 原来是一个升序排序的数组，并进行了 <code>1</code> 至 <code>n</code> 次旋转</li>
+ <li><code>n == nums.length</code></li>
+ <li><code>1 &lt;= n &lt;= 5000</code></li>
+ <li><code>-5000 &lt;= nums[i] &lt;= 5000</code></li>
+ <li><code>nums</code> 中的所有整数 <strong>互不相同</strong></li>
+ <li><code>nums</code> 原来是一个升序排序的数组，并进行了 <code>1</code> 至 <code>n</code> 次旋转</li>
 </ul>
 
 ## 思路
@@ -85,6 +85,9 @@ permalink: /blog/ovvcr4gy/
 
 ## 解题代码
 
+::: code-tabs
+@tab Java
+
 ```java
 class Solution {
     public int findMin(int[] nums) {
@@ -103,4 +106,6 @@ class Solution {
 }
 ```
 
-注：由于 `mid` 始终不会等于 `n - 1` 故不需要关注此时应该移动 `left` 还是 `right` 
+:::
+
+注：由于 `mid` 始终不会等于 `n - 1` 故不需要关注此时应该移动 `left` 还是 `right`
