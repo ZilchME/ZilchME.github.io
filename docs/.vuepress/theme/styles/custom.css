@@ -1,50 +1,50 @@
+/* 参考官方变量定义: https://github.com/pengzhanbo/vuepress-theme-plume/blob/main/theme/src/client/styles/vars.css */
 :root {
   /** 主题颜色 */
-
-  /*
-  --vp-c-brand-1: #5086a1;
-  --vp-c-brand-2: #6aa1b7;
-  --vp-c-brand-3: #8cccd5;
-  --vp-c-brand-soft: rgba(131, 208, 218, 0.314);
-  */
+  --vp-c-brand-1: #1f5ea8;
+  --vp-c-brand-2: #2f7acb;
+  --vp-c-brand-3: #5aa8e6;
+  --vp-c-brand-soft: rgba(47, 122, 203, 0.18);
 
   /** 背景颜色 */
-
-  /*
   --vp-c-bg: #fff;
   --vp-c-bg-alt: #f6f6f7;
   --vp-c-bg-elv: #fff;
   --vp-c-bg-soft: #f6f6f7;
-  */
 
   /** 文本颜色 */
+  --vp-c-text-1: rgba(17, 24, 39);
+  --vp-c-text-2: rgba(17, 24, 39, 0.78);
+  --vp-c-text-3: rgba(17, 24, 39, 0.56);
+}
 
-  /*
-  --vp-c-text-1: rgba(60, 60, 67);
-  --vp-c-text-2: rgba(60, 60, 67, 0.78);
-  --vp-c-text-3: rgba(60, 60, 67, 0.56);
-  */
+/* 让 Markdown 图片默认居中 */
+.vp-doc p > img {
+  display: block;
+  margin: 1.5rem auto; /* 上下外边距保持间距，左右自动居中 */
+}
+
+/* 针对带有描述文字的图片（如果有启用 figure） */
+.vp-doc figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 1.5rem auto;
 }
 
 /** 深色模式 */
 [data-theme="dark"] {
-  /*
-  --vp-c-brand-1: #8cccd5;
-  --vp-c-brand-2: #6aa1b7;
-  --vp-c-brand-3: #5086a1;
-  --vp-c-brand-soft: rgba(131, 208, 218, 0.314);
-  */
+  --vp-c-brand-1: #6bb5ff;
+  --vp-c-brand-2: #3b8ee6;
+  --vp-c-brand-3: #256bb5;
+  --vp-c-brand-soft: rgba(59, 142, 230, 0.22);
 
-  /*
   --vp-c-bg: #1b1b1f;
   --vp-c-bg-alt: #161618;
   --vp-c-bg-elv: #202127;
   --vp-c-bg-soft: #202127;
-  */
 
-  /*
-  --vp-c-text-1: rgba(255, 255, 245, 0.86);
-  --vp-c-text-2: rgba(235, 235, 245, 0.6);
-  --vp-c-text-3: rgba(235, 235, 245, 0.38);
-  */
+  --vp-c-text-1: rgba(235, 245, 255, 0.88);
+  --vp-c-text-2: rgba(235, 245, 255, 0.62);
+  --vp-c-text-3: rgba(235, 245, 255, 0.4);
 }

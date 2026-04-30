@@ -80,7 +80,7 @@ export default defineUserConfig({
     codeHighlighter: {
       // twoslash: true, // 启用 twoslash
       // whitespace: true, // 启用 空格/Tab 高亮
-      // lineNumbers: true, // 启用行号
+      lineNumbers: false, // 启用行号
     },
 
     /* 文章字数统计、阅读时间，设置为 false 则禁用 */
@@ -93,7 +93,7 @@ export default defineUserConfig({
      * @see https://theme-plume.vuejs.press/config/markdown/
      */
     markdown: {
-      //   abbr: true,         // 启用 abbr 语法  *[label]: content
+        abbr: true,         // 启用 abbr 语法  *[label]: content
       //   annotation: true,   // 启用 annotation 语法  [+label]: content
       //   pdf: true,          // 启用 PDF 嵌入 @[pdf](/xxx.pdf)
       //   caniuse: true,      // 启用 caniuse 语法  @[caniuse](feature_name)
@@ -131,7 +131,7 @@ export default defineUserConfig({
         //     size: true,       // 启用图片大小
       },
       //   include: true,      // 在 Markdown 文件中导入其他 markdown 文件内容
-      imageSize: 'local', // 启用 自动填充 图片宽高属性，避免页面抖动
+      imageSize: 'all', // 启用 自动填充 图片宽高属性，避免页面抖动
       codeTabs: {
         icon: true, // 启用代码标签页图标
       }
@@ -175,8 +175,8 @@ export default defineUserConfig({
      * 启用 llmstxt 插件，用于为大语言模型提供更友好的内容
      * @see https://theme-plume.vuejs.press/guide/features/llmstxt/
      */
-    // llmstxt: {
-    //   locale: '/',    // 默认仅为主语言生成 llms 友好内容
-    // }
+    llmstxt: {
+      locale: '/',    // 默认仅为主语言生成 llms 友好内容
+    }
   }),
 })
