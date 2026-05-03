@@ -1,0 +1,5145 @@
+---
+url: /blog/0wo0nrg6/index.md
+---
+# Java 线程池实现原理
+## 概述
+
+### 线程池是什么
+
+线程池（Thread Pool）是一种基于池化思想管理线程的工具，经常出现在多线程服务器中，如MySQL。
+
+线程过多会带来额外的开销，其中包括创建销毁线程的开销、调度线程的开销等等，同时也降低了计算机的整体性能。线程池维护多个线程，等待监督管理者分配可并发执行的任务。这种做法，一方面避免了处理任务时创建销毁线程开销的代价，另一方面避免了线程数量膨胀导致的过分调度问题，保证了对内核的充分利用。
+
+使用线程池可以带来一系列好处：
+
+* **降低资源消耗**：通过池化技术重复利用已创建的线程，降低线程创建和销毁造成的损耗。
+* **提高响应速度**：任务到达时，无需等待线程创建即可立即执行。
+* **提高线程的可管理性**：线程是稀缺资源，如果无限制创建，不仅会消耗系统资源，还会因为线程的不合理分布导致资源调度失衡，降低系统的稳定性。使用线程池可以进行统一的分配、调优和监控。
+* **提供更多更强大的功能**：线程池具备可拓展性，允许开发人员向其中增加更多的功能。比如延时定时线程池 `ScheduledThreadPoolExecutor`，就允许任务延期执行或定期执行。
+
+而本文描述线程池是JDK中提供的 `ThreadPoolExecutor` 类。
+
+### 线程池解决的问题是什么
+
+线程池解决的核心问题就是资源管理问题。在并发环境下，系统不能够确定在任意时刻中，有多少任务需要执行，有多少资源需要投入。这种不确定性将带来以下若干问题：
+
+1. 频繁申请/销毁资源和调度资源，将带来额外的消耗，可能会非常巨大。
+2. 对资源无限申请缺少抑制手段，易引发系统资源耗尽的风险。
+3. 系统无法合理管理内部的资源分布，会降低系统的稳定性。
+
+为解决资源分配这个问题，线程池采用了“池化”（Pooling）思想。池化，顾名思义，是为了最大化收益并最小化风险，而将资源统一在一起管理的一种思想。
+
+> Pooling is the grouping together of resources (assets, equipment, personnel, effort, etc.) for the purposes of maximizing advantage or minimizing risk to the users. The term is used in finance, computing and equipment management.——wikipedia
+
+在计算机领域中的表现为：统一管理IT资源，包括服务器、存储、和网络资源等等。通过共享资源，使用户在低投入中获益。除去线程池，还有其他比较典型的几种使用策略包括：
+
+1. 内存池(Memory Pooling)：预先申请内存，提升申请内存速度，减少内存碎片。
+2. 连接池(Connection Pooling)：预先申请数据库连接，提升申请连接的速度，降低系统的开销。
+3. 实例池(Object Pooling)：循环使用对象，减少资源在初始化和释放时的昂贵损耗。
+
+## 线程池核心设计与实现
+
+本章详细介绍在Java中的 `ThreadPoolExecutor` 类的设计。
+
+### 总体设计
+
+`ThreadPoolExecutor` 的继承关系如下UML类图所示：
+
+![ThreadPoolExecutor的UML类图](https://p1.meituan.net/travelcube/912883e51327e0c7a9d753d11896326511272.png)
+
+`ThreadPoolExecutor` 的顶层接口是 `Executor`，顶层接口 `Executor` 提供了一种思想：将任务提交和任务执行进行解耦。用户无需关注如何创建线程，如何调度线程来执行任务，用户只需提供 `Runnable` 对象，将任务的运行逻辑提交到 `Executor` 中，由 `Executor` 框架完成线程的调配和任务的执行部分。
+
+```java title="Executor.java"
+public interface Executor {
+
+    /**
+     * 在未来的某个时间执行给定的命令。该命令可能在新的线程中执行，
+     * 也可能在线程池中的线程里执行，或者在调用线程中执行，
+     * 具体由 {@code Executor} 的实现决定。
+     *
+     * @param command 可运行的任务
+     * @throws RejectedExecutionException 如果该任务无法被接受并执行
+     * @throws NullPointerException 如果 command 为空
+     */
+    void execute(Runnable command);
+}
+```
+
+`ExecutorService` 接口增加了一些能力：
+
+1. 扩充执行任务的能力，补充可以为一个或一批异步任务生成Future的方法；
+2. 提供了管控线程池的方法，比如停止线程池的运行。
+
+`AbstractExecutorService` 则是上层的抽象类，将执行任务的流程串联了起来，保证下层的实现只需关注一个执行任务的方法即可。
+
+最下层的实现类 `ThreadPoolExecutor` 实现最复杂的运行部分，`ThreadPoolExecutor` 将会一方面维护自身的生命周期，另一方面同时管理线程和任务，使两者良好的结合从而执行并行任务。其运行机制如下图：
+
+![ThreadPoolExecutor运行流程](https://p0.meituan.net/travelcube/77441586f6b312a54264e3fcf5eebe2663494.png)
+
+线程池在内部实际上构建了一个**生产者消费者模型**，将线程和任务两者解耦，并不直接关联，从而良好的缓冲任务，复用线程。线程池的运行主要分成两部分：任务管理、线程管理。
+
+任务管理部分充当生产者的角色，当任务提交后，线程池会判断该任务后续的流转：
+
+1. 直接申请线程执行该任务；
+2. 缓冲到队列中等待线程执行；
+3. 拒绝该任务。
+
+线程管理部分是消费者，它们被统一维护在线程池内，根据任务请求进行线程的分配，当线程执行完任务后则会继续获取新的任务去执行，最终当线程获取不到任务的时候，线程就会被回收。
+
+### 生命周期管理
+
+线程池运行的状态，并不是用户显式设置的，而是伴随着线程池的运行，由内部来维护。
+
+线程池内部使用一个变量维护两个值：运行状态(runState)和线程数量 (workerCount)。在具体实现中，线程池将运行状态(runState)、线程数量 (workerCount)两个关键参数的维护放在了一起，如下代码所示：
+
+```java title="ThreadPoolExecutor.java"
+private final AtomicInteger ctl = new AtomicInteger(ctlOf(RUNNING, 0));
+private static final int COUNT_BITS = Integer.SIZE - 3;
+private static final int COUNT_MASK = (1 << COUNT_BITS) - 1;
+
+// runState 存储在高位
+private static final int RUNNING    = -1 << COUNT_BITS;
+private static final int SHUTDOWN   =  0 << COUNT_BITS;
+private static final int STOP       =  1 << COUNT_BITS;
+private static final int TIDYING    =  2 << COUNT_BITS;
+private static final int TERMINATED =  3 << COUNT_BITS;
+```
+
+`ctl` 这个 `AtomicInteger` 类型，是对线程池的运行状态和线程池中有效线程的数量进行控制的一个字段， 它同时包含两部分的信息：线程池的运行状态 (`runState`) 和线程池内有效线程的数量 (`workerCount`)，高3位保存 `runState`，低29位保存 `workerCount`，两个变量之间互不干扰。
+
+用一个变量去存储两个值，可避免在做相关决策时，出现不一致的情况，不必为了维护两者的一致，而占用锁资源。
+
+线程池也提供了若干方法去供用户获得线程池当前的运行状态、线程个数。由于经常出现要同时判断线程池运行状态和线程数量的情况，使用位运算的方式，相比于基本运算，速度也会快很多。
+
+```java title="ThreadPoolExecutor.java"
+// ctl 的打包与解包
+private static int runStateOf(int c)     { return c & ~COUNT_MASK; }
+private static int workerCountOf(int c)  { return c & COUNT_MASK; }
+private static int ctlOf(int rs, int wc) { return rs | wc; }
+```
+
+`ThreadPoolExecutor` 的运行状态有5种，分别为：
+
+| 运行状态       | 状态描述                                                     |
+| -------------- | ------------------------------------------------------------ |
+| **RUNNING**    | 能接受新提交的任务，并且也能处理阻塞队列中的任务。           |
+| **SHUTDOWN**   | 关闭状态，不再接受新提交的任务，但却可以继续处理阻塞队列中已保存的任务。 |
+| **STOP**       | 不能接受新任务，也不处理队列中的任务，会中断正在处理任务的线程。 |
+| **TIDYING**    | 所有的任务都已终止了，workerCount (有效线程数) 为0。         |
+| **TERMINATED** | 在 `terminated()` 方法执行完后进入该状态。                   |
+
+其生命周期转换如下入所示：
+
+![线程池生命周期](https://p0.meituan.net/travelcube/582d1606d57ff99aa0e5f8fc59c7819329028.png)
+
+### 任务执行机制
+
+#### 任务调度
+
+任务调度是线程池的主要入口，当用户提交了一个任务，接下来这个任务将如何执行都是由这个阶段决定的。了解这部分就相当于了解了线程池的核心运行机制。
+
+首先，所有任务的调度都是由 `execute` 方法完成的，这部分完成的工作是：检查现在线程池的运行状态、运行线程数、运行策略，决定接下来执行的流程，是直接申请线程执行，或是缓冲到队列中执行，亦或是直接拒绝该任务。其执行过程如下：
+
+1. 首先检测线程池运行状态，如果不是 **RUNNING**，则直接拒绝，线程池要保证在 **RUNNING**的状态下执行任务。
+2. 如果 `workerCount < corePoolSize`，则创建并启动一个线程来执行新提交的任务。
+3. 如果 `workerCount >= corePoolSize`，且线程池内的阻塞队列未满，则将任务添加到该阻塞队列中。
+4. 如果 `workerCount >= corePoolSize && workerCount < maximumPoolSize`，且线程池内的阻塞队列已满，则创建并启动一个线程来执行新提交的任务。
+5. 如果 `workerCount >= maximumPoolSize`，并且线程池内的阻塞队列已满, 则根据拒绝策略来处理该任务, 默认的处理方式是直接抛异常。
+
+```java title="ThreadPoolExecutor.java"
+public void execute(Runnable command) {
+    Objects.requireNonNull(command, "command");
+    /*
+    * 分 3 步进行：
+    *
+    * 1. 如果正在运行的线程少于 corePoolSize，则尝试用给定的命令作为
+    * 第一个任务启动一个新线程。对 addWorker 的调用会原子地检查 runState
+    * 和 workerCount，因此通过返回 false，避免在不该添加线程时误判并添加线程。
+    *
+    * 2. 如果任务成功入队，仍然需要再次检查是否应该新增线程（因为自上次检查后，
+    * 现有线程可能已经退出），或者在进入该方法后线程池是否已经关闭。
+    * 因此需要重新检查状态，并在必要时于停止时回滚入队操作；
+    * 如果当前没有线程，则启动一个新线程。
+    *
+    * 3. 如果无法将任务入队，则尝试添加一个新线程。
+    * 如果失败，就说明线程池已关闭或已饱和，因此拒绝该任务。
+     */
+    int c = ctl.get();
+    if (workerCountOf(c) < corePoolSize) {
+        if (addWorker(command, true))
+            return;
+        c = ctl.get();
+    }
+    if (isRunning(c) && workQueue.offer(command)) {
+        int recheck = ctl.get();
+        if (! isRunning(recheck) && remove(command))
+            reject(command);
+        else if (workerCountOf(recheck) == 0)
+            addWorker(null, false);
+    }
+    else if (!addWorker(command, false))
+        reject(command);
+}
+```
+
+#### 任务缓冲
+
+任务缓冲模块是线程池能够管理任务的核心部分。线程池的本质是对任务和线程的管理，而做到这一点最关键的思想就是将任务和线程两者解耦，不让两者直接关联，才可以做后续的分配工作。
+
+线程池通过一个阻塞队列来实现生产者消费者模式，生产者是往队列里添加元素的线程，消费者是从队列里拿元素的线程。阻塞队列缓存任务，工作线程从阻塞队列中获取任务，阻塞队列是生产者存放元素的容器，而消费者也只从容器里拿元素。
+
+阻塞队列 (`BlockingQueue`) 是一个支持两个附加操作的队列。
+
+* 在队列为空时，获取元素的线程会等待队列变为非空。
+* 当队列满时，存储元素的线程会等待队列可用。
+
+![阻塞队列](https://p1.meituan.net/travelcube/f4d89c87acf102b45be8ccf3ed83352a9497.png)
+
+使用不同的队列可以实现不一样的任务存取策略。在这里，我们可以再介绍下阻塞队列的成员：
+
+| **名称**                  | 描述                                                         |
+| ------------------------- | ------------------------------------------------------------ |
+| **ArrayBlockingQueue**    | 一个用数组实现的有界阻塞队列，此队列按照先进先出(FIFO)的原则对元素进行排序。支持公平锁和非公平锁。 |
+| **LinkedBlockingQueue**   | 一个由链表结构组成的有界队列，此队列按照先进先出(FIFO)的原则对元素进行排序。此队列的默认长度为 `Integer.MAX_VALUE`，所以默认创建的该队列有容量危险。 |
+| **PriorityBlockingQueue** | 一个支持线程优先级排序的无界队列，默认自然序进行排序，也可以自定义实现 `compareTo()` 方法来指定元素排序规则，不能保证同优先级元素的顺序。 |
+| **DelayQueue**            | 一个实现 `PriorityBlockingQueue` 实现延迟获取的无界队列，在创建元素时，可以指定多久才能从队列中获取当前元素。只有延时期满后才能从队列中获取元素。 |
+| **SynchronousQueue**      | 一个不存储元素的阻塞队列，每一个 `put` 操作必须等待 `take` 操作，否则不能添加元素。支持公平锁和非公平锁。`SynchronousQueue` 的一个使用场景是在线程池里。`Executors.newCachedThreadPool()` 就使用了 `SynchronousQueue`，这个线程池根据需要（新任务到来时）创建新的线程，如果有空闲线程则会重复使用，线程空闲了60秒后会被回收。 |
+| **LinkedTransferQueue**   | 一个由链表结构组成的无界阻塞队列，相当于其它队列，`LinkedTransferQueue` 队列多了 `transfer` 和 `tryTransfer` 方法。 |
+| **LinkedBlockingDeque**   | 一个由链表结构组成的双向阻塞队列。队列头部和尾部都可以添加和移除元素，多线程并发时，可以将锁的竞争最多降到一半。 |
+
+#### 任务申请
+
+由上文的任务分配部分可知，任务的执行有两种可能：
+
+1. 任务直接由新创建的线程执行
+2. 线程从任务队列中获取任务然后执行，执行完任务的空闲线程会再次去从队列中申请任务再去执行
+
+第一种情况仅出现在线程初始创建的时候，第二种是线程获取任务绝大多数的情况。
+
+线程需要从任务缓存模块中不断地取任务执行，帮助线程从阻塞队列中获取任务，实现线程管理模块和任务管理模块之间的通信。这部分策略由 `getTask` 方法实现，其执行流程如下图所示：
+
+![获取任务流程图](https://p0.meituan.net/travelcube/49d8041f8480aba5ef59079fcc7143b996706.png)
+
+`getTask` 这部分进行了多次判断，为的是控制线程的数量，使其符合线程池的状态。如果线程池现在不应该持有那么多线程，则会返回 `null` 值。工作线程 Worker 会不断接收新任务去执行，而当工作线程 Worker 接收不到任务的时候，就会开始被回收。
+
+```java title="ThreadPoolExecutor.java"
+/**
+ * Performs blocking or timed wait for a task, depending on
+ * 根据当前配置，对任务执行阻塞或定时等待；如果该 worker 必须退出，
+ * 则返回 null，退出情况包括：
+ * 1. 由于调用 setMaximumPoolSize，worker 数量超过 maximumPoolSize。
+ * 2. 线程池被停止（stopped）。
+ * 3. 线程池已关闭（shutdown）且队列为空。
+ * 4. 该 worker 在等待任务时超时，且超时的 worker 会被终止（即
+ *    {@code allowCoreThreadTimeOut || workerCount > corePoolSize}），
+ *    在定时等待前后都会判断；
+ *    如果队列非空且该 worker 不是池中最后一个线程，则该 worker 会退出。
+ *
+ * @return task；如果 worker 必须退出则返回 null，此时 workerCount 会被递减
+ */
+private Runnable getTask() {
+    boolean timedOut = false; // Did the last poll() time out?
+
+    for (;;) {
+        int c = ctl.get();
+
+        // Check if queue empty only if necessary.
+        if (runStateAtLeast(c, SHUTDOWN)
+            && (runStateAtLeast(c, STOP) || workQueue.isEmpty())) {
+            decrementWorkerCount();
+            return null;
+        }
+
+        int wc = workerCountOf(c);
+
+        // Are workers subject to culling?
+        boolean timed = allowCoreThreadTimeOut || wc > corePoolSize;
+
+        if ((wc > maximumPoolSize || (timed && timedOut))
+            && (wc > 1 || workQueue.isEmpty())) {
+            if (compareAndDecrementWorkerCount(c))
+                return null;
+            continue;
+        }
+
+        try {
+            Runnable r = timed ?
+                workQueue.poll(keepAliveTime, TimeUnit.NANOSECONDS) :
+                workQueue.take();
+            if (r != null)
+                return r;
+            timedOut = true;
+        } catch (InterruptedException retry) {
+            timedOut = false;
+        }
+    }
+}
+```
+
+#### 任务拒绝
+
+任务拒绝模块是线程池的保护部分，线程池有一个最大的容量，当线程池的任务缓存队列已满，并且线程池中的线程数目达到 `maximumPoolSize` 时，就需要拒绝掉该任务，采取任务拒绝策略，保护线程池。
+
+拒绝策略是一个接口，其设计如下：
+
+```java title="RejectedExecutionHandler.java"
+public interface RejectedExecutionHandler {
+
+    /**
+     * 当 {@link ThreadPoolExecutor} 无法通过
+     * {@link ThreadPoolExecutor#execute execute} 接受任务时，
+     * 可能由该执行器调用的方法。这种情况可能发生在
+     * 由于超出线程或队列槽位的边界限制而导致
+     * 无可用的线程或队列槽位时，或者在执行器关闭时。
+     *
+     * <p>在没有其他替代方案的情况下，该方法可能抛出
+     * 一个非受检的 {@link RejectedExecutionException}，
+     * 该异常将被传播给 {@code execute} 方法的调用者。
+     *
+     * @param r        要执行的可运行任务
+     * @param executor 尝试执行此任务的线程池执行器
+     * @throws RejectedExecutionException 如果无法补救
+     */
+    void rejectedExecution(Runnable r, ThreadPoolExecutor executor);
+}
+```
+
+用户可以通过实现这个接口去定制拒绝策略，也可以选择JDK提供的四种已有拒绝策略，其特点如下：
+
+| **名称**                                   | 描述                                                         |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| **ThreadPoolExecutor.AbortPolicy**         | **丢弃任务并抛出 `RejectedExecutionException` 异常**。这是线程池默认的拒绝策略，在任务不能再提交的时候，抛出异常，及时反馈程序运行状态。如果是比较关键的业务，推荐使用此拒绝策略，这样子在系统不能承载更大的并发量的时候，能够及时的通过异常发现。 |
+| **ThreadPoolExecutor.DiscardPolicy**       | **丢弃任务，但是不抛出异常**。使用此策略，可能会使我们无法发现系统的异常状态。建议是一些无关紧要的业务采用此策略。 |
+| **ThreadPoolExecutor.DiscardOldestPolicy** | **丢弃队列最前面的任务，然后重新提交被拒绝的任务**。是否要采用此种拒绝策略，还得根据实际业务是否允许丢弃老任务来认真衡量。 |
+| **ThreadPoolExecutor.CallerRunsPolicy**    | **由调用线程（提交任务的线程）处理该任务**。这种情况是需要==让所有任务都执行完毕==，那么就适合大量计算的任务类型去执行，多线程仅仅是增大吞吐量的手段，最终必须要让每个任务都执行完毕。 |
+
+### Worker 线程管理
+
+#### Worker 线程
+
+线程池为了掌握线程的状态并维护线程的生命周期，设计了线程池内的工作线程 `Worker`。我们来看一下它的部分代码：
+
+```java title="ThreadPoolExecutor.java" :collapsed-lines
+/**
+ * Worker 类主要用于维护运行任务的线程的中断控制状态，
+ * 以及一些其他的辅助记账功能。该类适时地扩展了
+ * AbstractQueuedSynchronizer，以简化对每个任务执行
+ * 前后获取和释放锁的操作。这样可以防止那些旨在唤醒
+ * 正在等待任务的 worker 线程的中断，意外地中断了
+ * 正在运行的任务。我们实现了一个简单的不可重入的
+ * 互斥锁，而没有使用 ReentrantLock，因为我们不希望
+ * worker 任务在调用诸如 setCorePoolSize 等池控制方法时
+ * 能够重新获取该锁。此外，为了在线程真正开始运行任务
+ * 之前抑制中断，我们将锁的初始状态设为负数，并在
+ * 启动时（在 runWorker 中）将其清除。
+ */
+private final class Worker
+    extends AbstractQueuedSynchronizer
+    implements Runnable
+{
+    /**
+     * This class will never be serialized, but we provide a
+     * serialVersionUID to suppress a javac warning.
+     */
+    private static final long serialVersionUID = 6138294804551838833L;
+
+    /** Thread this worker is running in.  Null if factory fails. */
+    @SuppressWarnings("serial") // Unlikely to be serializable
+    final Thread thread;
+    /** Initial task to run.  Possibly null. */
+    @SuppressWarnings("serial") // Not statically typed as Serializable
+    Runnable firstTask;
+    /** Per-thread task counter */
+    volatile long completedTasks;
+
+    /**
+     * Creates with given first task and thread from ThreadFactory.
+     * @param firstTask the first task (null if none)
+     */
+    Worker(Runnable firstTask) {
+        setState(-1); // inhibit interrupts until runWorker
+        this.firstTask = firstTask;
+        this.thread = getThreadFactory().newThread(this); // [!code highlight]
+    }
+
+    /** Delegates main run loop to outer runWorker. */
+    public void run() {
+        runWorker(this); // [!code highlight]
+    }
+
+    // Lock methods
+    //
+    // The value 0 represents the unlocked state.
+    // The value 1 represents the locked state.
+
+    protected boolean isHeldExclusively() {
+        return getState() != 0;
+    }
+
+    protected boolean tryAcquire(int unused) {
+        if (compareAndSetState(0, 1)) {
+            setExclusiveOwnerThread(Thread.currentThread());
+            return true;
+        }
+        return false;
+    }
+
+    protected boolean tryRelease(int unused) {
+        setExclusiveOwnerThread(null);
+        setState(0);
+        return true;
+    }
+
+    public void lock()        { acquire(1); }
+    public boolean tryLock()  { return tryAcquire(1); }
+    public void unlock()      { release(1); }
+    public boolean isLocked() { return isHeldExclusively(); }
+
+    void interruptIfStarted() {
+        Thread t;
+        if (getState() >= 0 && (t = thread) != null && !t.isInterrupted()) {
+            try {
+                t.interrupt();
+            } catch (SecurityException ignore) {
+            }
+        }
+    }
+}
+```
+
+`Worker` 这个工作线程，实现了 `Runnable` 接口，并持有一个线程 `thread`，一个初始化的任务 `firstTask`。
+
+* `thread` 是在调用构造方法时通过 `ThreadFactory` 来创建的线程，可以用来执行任务；
+
+  由于 **`Worker` 自身实现了 `Runnable` 接口**，并且在创建 `thread` 时将它作为 `Runnable  target` 目标传给了 `Thread` 构造器，当`thread.start()` 启动新线程时，会调用 `target.run()`
+
+* `firstTask` 用它来保存传入的第一个任务，这个任务可以有也可以为 `null`。
+  * 如果这个值是非空的，那么线程就会在启动初期立即执行这个任务，也就对应核心线程创建时的情况；
+  * 如果这个值是 `null`，那么就需要创建一个线程去执行任务列表（`workQueue`）中的任务，也就是非核心线程的创建。
+
+`Worker` 执行任务的模型如下图所示：
+
+![Worker执行任务](https://p0.meituan.net/travelcube/03268b9dc49bd30bb63064421bb036bf90315.png)
+
+线程池需要管理线程的生命周期，需要在线程长时间不运行的时候进行回收。线程池使用一张Hash表去持有线程的引用，这样可以通过添加引用、移除引用这样的操作来控制线程的生命周期。这个时候重要的就是如何判断线程是否在运行。
+
+`Worker` 是通过继承 AQS，使用 AQS 来实现**独占锁**这个功能。没有使用可重入锁 `ReentrantLock`，而是使用 AQS，为的就是实现不可重入的特性去反应线程现在的执行状态。
+
+\*\[AQS]: `AbstractQueuedSynchronizer`
+
+1. `lock` 方法一旦获取了独占锁，表示当前线程正在执行任务中。
+2. 如果正在执行任务，则不应该中断线程。
+3. 如果该线程现在不是独占锁的状态，也就是空闲的状态，说明它没有在处理任务，这时可以对该线程进行中断。
+4. 线程池在执行 `shutdown` 方法或 `tryTerminate` 方法时会调用 `interruptIdleWorkers` 方法来中断空闲的线程，`interruptIdleWorkers` 方法会使用 `tryLock` 方法来判断线程池中的线程是否是空闲状态；如果线程是空闲状态则可以安全回收。
+
+在线程回收过程中就使用到了这种特性，回收过程如下图所示：
+
+![线程池回收过程](https://p1.meituan.net/travelcube/9d8dc9cebe59122127460f81a98894bb34085.png)
+
+增加线程是通过线程池中的 `addWorker` 方法，该方法的功能就是增加一个线程，该方法不考虑线程池是在哪个阶段增加的该线程，这个分配线程的策略是在上个步骤完成的，该步骤仅仅完成增加线程，并使它运行，最后返回是否成功这个结果。
+
+`addWorker`方法有两个参数：`firstTask`、`core`：
+
+* `firstTask` 用于指定新增的线程执行的第一个任务，该参数可以为空；
+* `core` 为 `true` 表示在新增线程时会判断当前活动线程数是否少于 `corePoolSize`，`false` 表示新增线程前需要判断当前活动线程数是否少于 `maximumPoolSize`
+
+`addWorker` 执行流程如下图所示：
+
+![申请线程执行流程图](https://p0.meituan.net/travelcube/49527b1bb385f0f43529e57b614f59ae145454.png)
+
+```java title="ThreadPoolExecutor.java" :collapsed-lines
+/**
+ * 根据当前池的状态和给定的边界（核心线程数或最大线程数）
+ * 检查是否可以添加新的 worker。如果可以，则相应调整 worker
+ * 计数，并尽可能创建并启动一个新的 worker，以 firstTask 作为
+ * 其第一个任务。如果池已停止或符合关闭条件，此方法返回 false。
+ * 如果线程工厂在创建线程时失败，该方法同样返回 false。如果线程
+ * 创建失败，无论是由于线程工厂返回 null，还是由于异常（通常是
+ * Thread.start() 中的 OutOfMemoryError），我们都会干净地回滚。
+ *
+ * @param firstTask 新线程应首先运行的任务（如果没有则为 null）。
+ * 当线程数少于 corePoolSize 时（此时我们总是启动一个 worker），
+ * 或者当队列已满时（此时我们必须绕过队列），会使用一个初始的 firstTask
+ * 来创建 worker（在 execute() 方法中）。初始空闲线程通常通过
+ * prestartCoreThread 创建，或者用于替换其他 dying 的 worker。
+ *
+ * @param core 如果为 true，则使用 corePoolSize 作为边界，
+ * 否则使用 maximumPoolSize。（此处使用布尔值指示器而不是具体数值，
+ * 以确保在检查其他池状态后能读取到最新的值）。
+ * @return 如果成功则返回 true
+ */
+private boolean addWorker(Runnable firstTask, boolean core) {
+    retry:
+    for (int c = ctl.get();;) {
+        // Check if queue empty only if necessary.
+        if (runStateAtLeast(c, SHUTDOWN)
+            && (runStateAtLeast(c, STOP)
+                || firstTask != null
+                || workQueue.isEmpty()))
+            return false;
+
+        for (;;) {
+            if (workerCountOf(c)
+                >= ((core ? corePoolSize : maximumPoolSize) & COUNT_MASK))
+                return false;
+            if (compareAndIncrementWorkerCount(c))
+                break retry;
+            c = ctl.get();  // Re-read ctl
+            if (runStateAtLeast(c, SHUTDOWN))
+                continue retry;
+            // else CAS failed due to workerCount change; retry inner loop
+        }
+    }
+
+    boolean workerStarted = false;
+    boolean workerAdded = false;
+    Worker w = null;
+    try {
+        w = new Worker(firstTask);
+        final Thread t = w.thread; // [!code highlight]
+        if (t != null) {
+            final ReentrantLock mainLock = this.mainLock;
+            mainLock.lock();
+            try {
+                // Recheck while holding lock.
+                // Back out on ThreadFactory failure or if
+                // shut down before lock acquired.
+                int c = ctl.get();
+
+                if (isRunning(c) ||
+                    (runStateLessThan(c, STOP) && firstTask == null)) {
+                    if (t.getState() != Thread.State.NEW)
+                        throw new IllegalThreadStateException();
+                    workers.add(w);
+                    workerAdded = true;
+                    int s = workers.size();
+                    if (s > largestPoolSize)
+                        largestPoolSize = s;
+                }
+            } finally {
+                mainLock.unlock();
+            }
+            if (workerAdded) {
+                t.start(); // [!code --]
+                // private final SharedThreadContainer container; // [!code ++]
+                container.start(t); // JDK 21 起 // [!code ++]
+                workerStarted = true;
+            }
+        }
+    } finally {
+        if (! workerStarted)
+            addWorkerFailed(w);
+    }
+    return workerStarted;
+}
+```
+
+#### Worker 线程回收
+
+线程池中线程的销毁依赖 JVM 自动的回收，线程池做的工作是根据当前线程池的状态维护一定数量的线程引用，防止这部分线程被JVM回收，当线程池决定哪些线程需要回收时，只需要将其引用消除即可。
+
+`Worker` 被创建出来后，就会不断地进行轮询，然后获取任务去执行，核心线程可以无限等待获取任务，非核心线程要限时获取任务。当`Worker` 无法获取到任务，也就是获取的任务为空时，循环会结束，`Worker` 会主动消除自身在线程池内的引用。
+
+线程回收的工作是在 `processWorkerExit` 方法完成的。
+
+![线程销毁流程](https://p0.meituan.net/travelcube/90ea093549782945f2c968403fdc39d415386.png)
+
+事实上，在这个方法中，将线程引用移出线程池就已经结束了线程销毁的部分。但由于引起线程销毁的可能性有很多，线程池还要判断是什么引发了这次销毁，是否要改变线程池的现阶段状态，是否要根据新状态，重新分配线程。
+
+```java title="ThreadPoolExecutor.java"
+/**
+ * 为即将终止的 worker 执行清理和记账工作。仅由 worker 线程调用。
+ * 除非 completedAbruptly 被设置为 true，否则假定 workerCount
+ * 已经针对退出进行了调整。该方法会从 worker 集合中移除线程，
+ * 并在以下情况下可能终止线程池或替换该 worker：
+ * worker 因用户任务异常而退出，或者运行中的 worker 数少于
+ * corePoolSize，或者队列非空但没有正在运行的 worker。
+ *
+ * @param w 要清理的 worker
+ * @param completedAbruptly 若 worker 因用户异常而死亡
+ */
+private void processWorkerExit(Worker w, boolean completedAbruptly) {
+    if (completedAbruptly) // If abrupt, then workerCount wasn't adjusted
+        decrementWorkerCount();
+
+    final ReentrantLock mainLock = this.mainLock;
+    mainLock.lock();
+    try {
+        completedTaskCount += w.completedTasks;
+        workers.remove(w);
+    } finally {
+        mainLock.unlock();
+    }
+
+    tryTerminate();
+
+    int c = ctl.get();
+    if (runStateLessThan(c, STOP)) {
+        if (!completedAbruptly) {
+            int min = allowCoreThreadTimeOut ? 0 : corePoolSize;
+            if (min == 0 && ! workQueue.isEmpty())
+                min = 1;
+            if (workerCountOf(c) >= min)
+                return; // replacement not needed
+        }
+        addWorker(null, false);
+    }
+}
+```
+
+#### Worker线程执行任务
+
+在 `Worker` 类中的 `run` 方法调用了 `runWorker` 方法来执行任务，`runWorker` 方法的执行过程如下：
+
+1. `while` 循环不断地通过 `getTask()` 方法获取任务。
+2. `getTask()` 方法从阻塞队列中取任务。
+3. 如果线程池正在停止，那么要保证当前线程是中断状态，否则要保证当前线程不是中断状态。
+4. 执行任务。
+5. 如果 `getTask()` 结果为 `null` 则跳出循环，执行 `processWorkerExit()` 方法，销毁线程。
+
+> 默认情况下核心线程在 `getTask()` 中会永远阻塞在 `workQueue.take()` 上，所以永远不会进入 `processWorkerExit` 方法，从而确保核心线程长期存活。
+
+![执行任务流程](https://p0.meituan.net/travelcube/879edb4f06043d76cea27a3ff358cb1d45243.png)
+
+```java title="ThreadPoolExecutor.java"
+final void runWorker(Worker w) {
+    Thread wt = Thread.currentThread();
+    Runnable task = w.firstTask;
+    w.firstTask = null;
+    w.unlock(); // allow interrupts
+    boolean completedAbruptly = true;
+    try {
+        while (task != null || (task = getTask()) != null) {
+            w.lock();
+            // If pool is stopping, ensure thread is interrupted;
+            // if not, ensure thread is not interrupted.  This
+            // requires a recheck in second case to deal with
+            // shutdownNow race while clearing interrupt
+            if ((runStateAtLeast(ctl.get(), STOP) ||
+                 (Thread.interrupted() &&
+                  runStateAtLeast(ctl.get(), STOP))) &&
+                !wt.isInterrupted())
+                wt.interrupt();
+            try {
+                beforeExecute(wt, task);
+                try {
+                    task.run();
+                    afterExecute(task, null);
+                } catch (Throwable ex) {
+                    afterExecute(task, ex);
+                    throw ex;
+                }
+            } finally {
+                task = null;
+                w.completedTasks++;
+                w.unlock();
+            }
+        }
+        completedAbruptly = false;
+    } finally {
+        processWorkerExit(w, completedAbruptly);
+    }
+}
+```
+
+---
+
+---
+url: /blog/3uhk6rao/index.md
+---
+# 为什么不建议直接 select *
+## 性能问题
+
+1. **增加不必要的 I/O 和网络开销**
+   `SELECT *` 会读取并返回表中的所有字段，即使你的业务逻辑只需要其中一两个。这会带来多重开销：
+   * **磁盘 I/O：** 数据库需要从磁盘读取整行数据，如果表中包含 `TEXT`、`BLOB` 等大字段，I/O 开销会急剧增加。
+   * **网络传输：** 大量无用数据通过网络从数据库服务器传输到应用服务器，会占用宝贵的带宽，增加网络延迟。
+   * **内存与CPU：** 应用层需要为这些多余的数据分配内存，并进行序列化和反序列化，消耗额外的 CPU 资源。
+
+2. **无法利用覆盖索引**
+   覆盖索引（Covering Index）是一种高效的查询优化方式。当查询所需的所有字段都包含在某个索引中时，数据库可以直接从索引中获取数据，而无需“回表”查询数据行。
+   * **示例：** 假设 `user_info` 表有一个 `(age, name)` 的联合索引。
+     * `SELECT age, name FROM user_info WHERE age = 18;` 可以直接使用覆盖索引，速度很快。
+     * `SELECT * FROM user_info WHERE age = 18;` 由于需要 `*` 代表的所有字段（如 `address`），而索引中不包含，数据库必须先用索引找到记录，再回到主表中读取完整数据行，这个过程称为“回表”，会显著降低查询效率。
+
+## 稳定性与可维护性问题
+
+1. **表结构变更带来的风险**
+   使用 `SELECT *` 会使你的代码与数据库表结构产生强耦合。一旦表结构发生变化，比如新增了字段或修改了字段类型，依赖 `SELECT *` 的代码就可能出现问题。
+   * **意外暴露数据：** 如果新增了一个包含敏感信息的字段（如 `password_hash`），`SELECT *` 会无意中将其暴露给应用层，造成安全风险。
+   * **应用崩溃：** 如果新增了一个应用层无法识别或处理的字段类型，可能导致程序解析失败甚至崩溃。
+
+2. **字段顺序依赖问题**
+   `SELECT *` 返回的字段顺序取决于表的物理定义。如果表结构变更导致字段顺序改变，而你的代码是按位置（如 `row`, `row`）来获取数据的，就会取到错误的值，引发难以排查的 Bug。
+
+3. **多表 JOIN 时的列名冲突**
+   在多表连接查询时，`SELECT *` 会返回所有表的全部字段。如果不同表中有同名字段（如 `id`, `created_at`），会导致结果集中出现重复列名，使得应用层在取值时产生混淆或错误。
+
+4. **代码可读性差**
+   明确的字段列表能让其他开发者一眼看出这个查询到底需要哪些数据。而 `SELECT *` 隐藏了查询的真实意图，增加了代码理解和后期维护的成本。
+
+---
+
+---
+url: /blog/7g4bj8uj/index.md
+---
+由于qt版本，fcitx5-config 只能安装在 Ubuntu 20.10 以上版本，低于此版本直接用 apt 安装的话无法使用 GUI 进行配置。在此记录一次在 Ubuntu 20.04 上从 flatpak 安装 fcitx5
+
+## 安装 flatpak
+
+```shell
+sudo add-apt-repository ppa:flatpak/stable
+sudo apt update
+sudo apt install flatpak
+sudo apt install gnome-software-plugin-flatpak
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+```
+
+## 安装 fcitx5
+
+### 添加 flatub 仓库
+
+```shell
+# 如果使用的是旧版flatpak，在安装的时候会需要显示的指定软件仓库名字: flatpak install flathub org.fcitx.Fcitx5
+flatpak install org.fcitx.Fcitx5
+# 安装 fcitx5 输入法引擎, 例如fcitx5-chinese-addons, or mozc
+flatpak install org.fcitx.Fcitx5.Addon.ChineseAddons # 中文输入法
+# flatpak install org.fcitx.Fcitx5.Addon.Mozc 
+```
+
+### 安装 fcitx5 后端
+
+```shell
+sudo apt install fcitx5-frontend-gtk2 fcitx5-frontend-gtk3 fcitx5-frontend-qt5
+```
+
+### 配置环境变量
+
+```shell
+sudo vim /etc/profile
+```
+
+在末尾添加如下内容
+
+```shell
+export XMODIFIERS=@im=fcitx
+export GTK_IM_MODULE=fcitx
+export QT_IM_MODULE=fcitx
+```
+
+### 设置开机启动
+
+我是直接在 gnome-tweak 里设置的，如果懂的也可以用其他办法~~（但是我不会）~~
+
+### 一些简单配置
+
+#### 安装词库
+
+下载`*.dict`文件，放置到 `~/.local/share/fcitx5/pinyin/dictionaries`目录
+
+这里由于一些迷之原因，刚装好的时候并没有找到这个目录，后来可能是我在GUI上配置了一些东西吧它就创建了（纯猜测）
+
+附带两个词库连接：
+[萌娘百科词库](https://github.com/outloudvi/mw2fcitx/tree/20220114)
+[wiki中文词库](https://github.com/felixonmars/fcitx5-pinyin-zhwiki/tree/0.2.3)
+
+#### 安装主题
+
+下载主题，放置到 `~/.local/share/fcitx5/themes` 目录，之后在 `配置—附加组件—经典用户界面` 中切换
+
+## 参考链接
+
+> <https://ouyen.github.io/fcitx5-ubuntu/>
+
+---
+
+---
+url: /blog/a4c99ozx/index.md
+---
+# 自定义组件
+
+---
+
+---
+url: /blog/aucgvg00/index.md
+---
+# 数字控制器的离散化设计技术
+## 数字控制器的离散化设计步骤
+
+计算机控制系统框图如下图所示：
+
+![计算机控制系统框图](/blog/计算机控制系统框图.png)
+可得其闭环脉冲函数为：
+$$
+\Phi(z)=\frac{D(z) G(z)}{1+D(z) G(z)}
+$$
+其中，$G(z)=Z\[H(s)G\_c(s)]$，为控制对象加上零阶保持器后的离散化。
+反推可知：
+$$
+D(z)=\frac{\Phi(z)}{G(z)(1-\Phi(z))}=\frac{\Phi(z)}{G(z) \Phi\_e(z)}
+$$
+设计最少拍控制器，通常根据性能要求和约束条件确定所需的$\Phi(z)$和$\Phi\_e(z)$，再得到$D(z)$。
+
+## 最少拍有纹波控制器的设计
+
+### 设计原理
+
+根据终值定理可求出系统的稳态误差：
+$$
+e(\infty) =\lim\_{z \rightarrow 1}\left(1-z^{-1}\right) E(z)
+\=\lim\_{z \rightarrow 1}\left(1-z^{-1}\right) R(z) \Phi\_e(z)
+\=\lim\_{z \rightarrow 1}\left(1-z^{-1}\right) \frac{B(z)}{\left(1-z^{-1}\right)^q} \Phi\_e(z)
+$$
+我们希望稳态误差为0，且过渡过程步数最少，于是我们从中可以得到如下结论：
+
+1. $\Phi\_e(z)$的设计与$R(z)$的阶次相关，并且我们要抵消其在$z=1$上的极点，即$\Phi\_e(z)$要包含$\left(1-z^{-1}\right)^q$
+2. 为了步数最少，$\Phi\_e(z)$中其他关于$z^{-1}$的幂次要尽可能低
+
+此外，我们还需要考虑$D(z)$的**可实现性问题和稳定性问题**：
+
+* **可实现性**
+  $D(z)$中不能含有超前环节，即分母阶次大于等于分子，设计时若广义脉冲传递函数$G(z)$的分母比分子高N阶，则确定$\Phi(z)$时必须至少分母比分子高N阶;若被控对象有滞后特性，$\Phi(z)$中必须含有纯滞后，且滞后时间至少要等于被控对象的滞后时间。
+* **稳定性**
+  最小拍系统的设计前提是$G(z)$在单位圆上或圆外没有零极点，或能被$\Phi(z)$及$\Phi\_e(z)$补偿，即：
+  * $\Phi\_e(z)$的零点中，必须包含$G(z)$在**单位圆上或圆外**的所有极点；
+  * $\Phi(z)$的零点中，必须包含$G(z)$在**单位圆上或圆外**的所有零点；
+
+### 设计方法
+
+综上所述，可以总结出设计最少拍有纹波控制器的一般步骤(应试):
+
+1. 求取广义对象的脉冲传递函数$G(z)=Z\[H(s)G\_c(s)]$
+2. 依据$R(z)$的阶次和$G(z)$的零极点分布确定$\Phi\_e(z)$和$\Phi(z)$和的形式。由$\Phi(z)=1-\Phi\_e(z)$，比较系数法得到$\Phi\_e(z)$和$\Phi(z)$
+3. 得到调节模型
+   $$D(z)=\frac{\Phi(z)}{G(z) \Phi\_e(z)}$$
+
+## 最少拍无纹波控制器的设计
+
+### 为什么会有纹波
+
+纹波的产生在于控制信号$u(k)$无法在有限个周期内达到稳态，经过采样后给被控对象$G\_c(s)$的控制信号$u(t)$无法达到稳态，使得输出产生纹波。
+
+### 系统无纹波的要求
+
+显然，无纹波最小拍系统要求$U(z)$为$z^{-1}$的有限多项式
+$$U(z)=E(z)D(z)=D(z)\Phi\_e(z)R(z)$$
+在设计最小拍系统时，已经保证了$\Phi\_e(z)$的零点完全对消$R(z)$的极点
+又有：
+$$D(z)\Phi\_e(z)=\frac{\Phi(z)}{G(z)}$$
+故只需保证$\Phi(z)$的零点完全对消$G(z)$的零点即可。
+
+**综上所述，设计无纹波系统时，只需在有纹波系统的条件下附加一条：**
+
+* $\Phi(z)$的零点**完全对消**$G(z)$的零点
+
+---
+
+---
+url: /blog/e0ngjhov/index.md
+---
+# Linux 中安装 Nodejs
+安装 Nodejs 的一种方法。在 Linux 中安装编译好的程序大抵都是如此。
+
+在 Node.js 官网中可下载源码或编译完成的包：
+
+> <https://nodejs.org/en>
+
+在此以编译完成的压缩包 `node-v20.11.0-linux-x64.tar.xz` 为例
+
+1. 解压缩文件：
+
+   ```shell
+   tar -xf node-v20.11.0-linux-x64.tar.xz
+   ```
+
+2. 移动文件：
+
+   为了方便管理，将它移动到一个合适的位置，比如 `/usr/local/`。
+
+   ```shell
+   sudo mv node-v20.11.0-linux-x64 /usr/local/
+   ```
+
+3. 设置环境变量：
+
+   为了能够在终端中直接使用 `node` 和 `npm` 命令，将 `bin` 目录添加到系统的 `PATH` 环境变量中。在 `shell` 配置文件 `.bashrc` 添加：
+
+   ```shell
+   export PATH=/usr/local/node-v20.11.0-linux-x64/bin:$PATH
+   ```
+
+   重启终端或运行以下命令使配置生效：
+
+   ```shell
+   source ~/.bashrc
+   ```
+
+4. 验证安装：
+
+   运行以下命令来验证 `Node.js` 和 `npm` 是否成功安装：
+
+   ```shell
+   node -v
+   npm -v
+   ```
+
+   如果安装成功，你将看到对应的版本号信息。
+
+---
+
+---
+url: /blog/emr8nmsj/index.md
+---
+# 按位与闭包的最大基数
+## 按位与闭包的最大基数
+
+### 问题描述
+
+给定一个初始长度为 $n$ 的数组 $a$。你可以进行任意次（包括零次）如下操作：
+
+* 选择两个下标 $i, j$（满足 $1 \le i, j \le m$，其中 $m$ 为当前数组长度）；
+* 计算 $v = a\_i \ &\ a\_j$（其中 `&` 表示按位与运算）；
+* 将结果 $v$ 追加到数组末尾，使数组长度增加 1。
+
+求在进行了任意次操作后，数组中最多能出现多少个**不同**的元素。
+
+### 输入描述
+
+* 第一行输入一个整数 $T$（$1 \le T \le 10^4$），表示数据组数。
+* 对于每组数据：
+  * 第一行输入一个整数 $n$（$1 \le n \le 2 \times 10^5$）。
+  * 第二行输入 $n$ 个整数 $a\_1, a\_2, \dots, a\_n$（$0 \le a\_i \le 1023$）。
+* 保证所有测试数据的 $n$ 之和不超过 $2 \times 10^5$。
+
+## 思路
+
+### 问题定义
+
+设 $S\_0 = {a\_1, a\_2, \dots, a\_n}$ 为初始整数集合。定义操作 $\mathcal{O}(x, y) = x \ &\ y$，其中 $&$ 为按位与运算。
+我们需要构建一个序列集合 $S\_0 \subseteq S\_1 \subseteq S\_2 \subseteq \dots$，其中 $S\_{k+1} = S\_k \cup {x \ &\ y \mid x, y \in S\_k}$。
+求该序列的极限集合 $S\_{\infty}$ 的基数（即不同元素的个数），记为 $|S\_{\infty}|$。
+
+### 实现思路
+
+值域限制在 10 位二进制数范围内（$0 \le a\_i \le 2^{10} - 1$），故可以通过数组维护一个固定大小为 `1024` 的集合
+
+1. 遍历 $S\_0 = {a\_1, a\_2, \dots, a\_n}$ 中每一个数 $a\_i$
+2. 将 $a\_i$ 与集合中的每一个数按位相与，将 $a\_i$ 本身以及新生成的数加入集合。
+3. 最终的集合大小为所求结果
+
+上述循环可以保证穷举过所有不重复元素的任意组合，不会出现遗漏
+
+**优化点：** $a\_i$ 可能由之前的数组合得到过，此时可以跳过
+
+## 解题代码（AMC模式）
+
+::: code-tabs
+@tab Java
+
+```java
+import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+
+        int t = Integer.parseInt(br.readLine());
+        StringBuilder sb = new StringBuilder();
+        
+        boolean[] reachable = new boolean[1024];
+        int[] reachableValues = new int[1024];
+
+        while (t-- > 0) {
+            int n = Integer.parseInt(br.readLine());
+            StringTokenizer st = new StringTokenizer(br.readLine());
+
+            Arrays.fill(reachable, false);
+            int numReachable = 0;
+            
+            for (int i = 0; i < n; i++) {
+                int val = Integer.parseInt(st.nextToken());
+
+                if (reachable[val]) continue;
+                
+                // 将当前值与已经发现的所有可达值进行按位与
+                int currentLimit = numReachable;
+                for (int j = 0; j < currentLimit; j++) {
+                    int next = reachableValues[j] & val;
+                    if (!reachable[next]) {
+                        reachable[next] = true;
+                        reachableValues[numReachable++] = next;
+                    }
+                }
+                reachable[val] = true;
+                reachableValues[numReachable++] = val;
+            }
+            sb.append(numReachable).append("\n");
+        }
+        System.out.print(sb);
+    }
+}
+```
+
+:::
+
+* **时间复杂度**：$O(\sum \min(n, V) \times V)$，其中 $V = 1024$。对于每个测试用例，我们处理 $n$ 个数。只有尚未被当前闭包覆盖的数才会执行内层循环（最多执行 $V$ 次）。内层循环最多运行 $V$ 次。
+* **空间复杂度**：$O(V)$，用于存储数据以及记录数值是否出现。
+
+---
+
+---
+url: /blog/eomjspnx/index.md
+---
+# 合并 K 个升序链表
+## 23. 合并 K 个升序链表
+
+## 解法一：小顶堆
+
+扩展合并两个有序链表的情况，存在 n 个链表时，每次求当前最小值的比较时间为 `O(n)`，可以使用小顶堆优化至 `O(logn)`
+
+::: code-tabs
+@tab Java
+
+```java
+class Solution {
+    public ListNode mergeKLists(ListNode[] lists) {
+        PriorityQueue<ListNode> heap = new PriorityQueue<>((a, b) -> a.val - b.val);
+        for (ListNode node : lists) {
+            if (node != null) {
+                heap.offer(node);
+            }
+        }
+        ListNode dummy = new ListNode();
+        ListNode ans = dummy;
+        while (!heap.isEmpty()) {
+            ListNode node = heap.poll();
+            if (node.next != null) {
+                heap.offer(node.next);
+            }
+            dummy.next = node;
+            dummy = node;
+        }
+        return ans.next;
+    }
+}
+```
+
+:::
+
+## 解法二：归并
+
+每次对链表进行两两合并，共合并log(n)次
+
+::: code-tabs
+@tab Java
+
+```java
+class Solution {
+    public ListNode mergeKLists(ListNode[] lists) {
+        int n = lists.length;
+        if (n == 0) {
+            return null;
+        }
+        for (int step = 1; step < n; step *= 2) {
+            for (int i = 0; i + step < n; i += step * 2) {
+                lists[i] = mergeTwoLists(lists[i], lists[i + step]);
+            }
+        }
+        return lists[0];
+    }
+
+    private ListNode mergeTwoLists(ListNode list1, ListNode list2) {
+        ListNode dummy = new ListNode();
+        ListNode cur = dummy; 
+        while (list1 != null && list2 != null) {
+            if (list1.val < list2.val) {
+                cur.next = list1; 
+                list1 = list1.next;
+            } else { 
+                cur.next = list2;
+                list2 = list2.next;ß
+            }
+            cur = cur.next;
+        }
+        cur.next = list1 != null ? list1 : list2; // 拼接剩余链表
+        return dummy.next;
+    }
+}
+```
+
+:::
+
+---
+
+---
+url: /blog/fp7nm9jr/index.md
+---
+# cartographer 的安装
+2016年10月5日，谷歌宣布开放一个名为 cartographer 的即时定位与地图建模库，开发人员可以使用该库实现机器人在二维或三维条件下的定位及建图功能。
+cartograhper 的设计目的是在计算资源有限的情况下，实时获取相对较高精度的 2D 地图。考虑到基于模拟策略的粒子滤波方法在较大环境下对内存和计算资源的需求较高，cartographer 采用基于优化方法。
+
+本文章记录 cartographer 源码编译的安装方法。
+
+> 安装参考 <https://google-cartographer-ros.readthedocs.io/en/latest/compilation.html>
+
+## Building & Installation
+
+### 安装依赖工具
+
+ROS Noetic 使用如下命令安装依赖工具
+
+```shell
+sudo apt-get update
+sudo apt-get install -y python3-wstool python3-rosdep ninja-build stow
+```
+
+对于更早的版本使用如下命令
+
+```shell
+sudo apt-get update
+sudo apt-get install -y python-wstool python-rosdep ninja-build stow
+```
+
+### 创建工作空间并下载源码
+
+```shell
+mkdir cartographer_ws
+cd cartographer_ws
+wstool init src
+wstool merge -t src https://raw.githubusercontent.com/cartographer-project/cartographer_ros/master/cartographer_ros.rosinstall
+wstool update -t src
+```
+
+### 安装 cartographer\_ros 的依赖项
+
+如果在安装 ROS 已经执行过`sudo rosdep init`，那么该命令的错误可以忽略
+
+```shell
+sudo rosdep init
+rosdep update
+rosdep install --from-paths src --ignore-src --rosdistro=${ROS_DISTRO} -y
+```
+
+如果在执行最后一行命令时出现如下错误：
+
+```text
+ERROR: the following packages/stacks could not have their rosdep keys resolved
+to system dependencies:
+cartographer: [libabsl-dev] defined as "not available" for OS version [focal]
+```
+
+解决方法是删除 cartographer package 下 package.xml 文件的 line 46 (`<depend>libabsl-dev</depend>`)
+
+> <https://github.com/cartographer-project/cartographer_ros/issues/1726>
+
+Cartographer 需要通过以下脚本手动安装 [abseil-cpp](https://abseil.io/) 库：
+
+```shell
+src/cartographer/scripts/install_abseil.sh
+```
+
+### Build and install
+
+```shell
+catkin_make_isolated --install --use-ninja
+```
+
+### 测试 cartographer
+
+下载2D数据包并运行demo
+
+```shell
+wget -P ~/cartographer_ws/dataset https://storage.googleapis.com/cartographer-public-data/bags/backpack_2d/cartographer_paper_deutsches_museum.bag
+source ~/cartographer_ws/install_isolated/setup.bash
+roslaunch cartographer_ros demo_backpack_2d.launch bag_filename:=${HOME}/cartographer_ws/dataset/cartographer_paper_deutsches_museum.bag
+```
+
+下载3D数据包并运行demo
+
+```shell
+wget -P ~/cartographer_ws/dataset https://storage.googleapis.com/cartographer-public-data/bags/backpack_3d/with_intensities/b3-2016-04-05-14-14-00.bag
+source ~/cartographer_ws/install_isolated/setup.bash
+roslaunch cartographer_ros demo_backpack_3d.launch bag_filename:=${HOME}/cartographer_ws/dataset/b3-2016-04-05-14-14-00.bag
+rosservice call /write_state "{filename: '${HOME}/cartographer_ws/dataset/cartographer_paper_deutsches_museum.bag.pbstream', include_unfinished_submaps: "true"}"
+```
+
+---
+
+---
+url: /blog/hma0zl40/index.md
+---
+在数据处理时有时会用到像是如下所示的代码，初次了解时会比较迷惑。
+
+```python
+day_of_year = pd.to_datetime(pumpkins['Date']).apply(lambda dt: (dt - datetime(dt.year, 1, 1)).days)
+```
+
+## Lambda 表达式
+
+Lambda表达式是一种匿名函数，也称为"匿名函数"或" Lambda 函数"。它是一种简洁的方式来定义简单的函数，通常用于函数式编程范式中。
+
+在 Python 中，Lambda 表达式的语法如下：
+
+```python
+lambda arguments: expression
+```
+
+其中，`lambda`是关键字，`arguments`是输入参数，可以是零个或多个，用逗号分隔，而`expression`是函数体，即函数的计算逻辑。Lambda 函数可以接受任意数量的参数，但它只能包含一个表达式。
+
+Lambda表达式具有以下特点：
+
+1. 匿名性：Lambda 函数是匿名的，它没有命名，因此通常用于简单的临时操作，而不是为复杂的功能定义命名函数。
+
+2. 简洁性：Lambda 表达式的语法非常简洁，适合用于单行函数的定义，以及需要传递函数作为参数的情况。
+
+3. 返回值：Lambda 函数会自动返回表达式的计算结果，无需使用`return`关键字。
+
+使用 Lambda 表达式的常见场景包括：
+
+* 作为参数传递给高阶函数，例如`map()`、`filter()`和`sorted()`等。
+* 用于定义简单的转换或过滤逻辑，以替代定义完整的命名函数。
+
+## `map()` 函数
+
+`map()`函数是 Python 内置函数之一，它用于将一个函数应用于给定的可迭代对象（如列表、元组等）的所有元素，生成一个新的可迭代对象，其中包含经过函数处理后的结果。
+
+`map()`函数的语法如下：
+
+```python
+map(function, iterable, ...)
+```
+
+* `function`：这是一个函数，可以是 Python 内置函数、自定义函数或 Lambda 表达式。`map()`将这个函数应用于`iterable`中的每个元素。
+
+* `iterable`：这是一个可迭代对象，如列表、元组、集合等。`map()`会对`iterable`中的每个元素都调用`function`进行处理。
+
+`map()`函数会返回一个`map`对象，它是一个惰性求值的对象，意味着在实际需要结果时才会计算并返回。要将`map`对象转换为列表或其他类型的可迭代对象，可以使用`list()`、`tuple()`等函数进行转换。
+
+## 举例
+
+1.使用 Lambda 表达式对列表中的元素进行平方操作：
+
+```python
+numbers = [1, 2, 3, 4, 5]
+squared_numbers = list(map(lambda x: x ** 2, numbers))
+print(squared_numbers)  # 输出: [1, 4, 9, 16, 25]
+```
+
+2.使用 Lambda 表达式对列表中的偶数进行过滤：
+
+```python
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+even_numbers = list(filter(lambda x: x % 2 == 0, numbers))
+print(even_numbers)  # 输出: [2, 4, 6, 8, 10]
+```
+
+3.使用 Lambda 表达式定义一个简单的计算器函数：
+
+```python
+# 定义一个简单的计算器函数，接受操作符和两个操作数，并执行相应的操作
+calculator = lambda op, a, b: a + b if op == '+' else a - b if op == '-' else a * b
+
+print(calculator('+', 5, 3))  # 输出: 8
+print(calculator('-', 10, 4))  # 输出: 6
+print(calculator('*', 2, 6))  # 输出: 12
+```
+
+在最开始的例子中，`apply()`函数的作用类似于`map()`
+
+```python
+day_of_year = pd.to_datetime(pumpkins['Date']).apply(lambda dt: (dt - datetime(dt.year, 1, 1)).days)
+```
+
+1. `pd.to_datetime(pumpkins['Date'])`: 这部分代码将`pumpkins` DataFrame中的'Date'列转换为pandas中的日期时间格式。`pd.to_datetime()`是pandas的一个函数，它将给定的日期字符串转换为日期时间对象，这样可以在之后进行日期的计算和处理。
+
+2. `apply(lambda dt: (dt - datetime(dt.year, 1, 1)).days)`: 这是对转换后的日期时间对象进行操作。`apply()`是pandas DataFrame对象的一个方法，它允许我们对DataFrame的每个元素应用一个函数。在这里，我们使用了一个lambda函数来计算每个日期在一年中的第几天。
+
+   * `lambda dt: (dt - datetime(dt.year, 1, 1))`: 这个lambda函数接受一个日期时间对象`dt`作为输入，并计算该日期时间对象与当年1月1日之间的时间差，得到一个`timedelta`对象。这个时间差表示该日期距离当年的1月1日有多少天。
+
+   * `.days`: `timedelta`对象有一个属性`.days`，表示该时间差的天数部分。
+
+因此，整个代码的目的是将`pumpkins` DataFrame中的'Date'列转换为日期时间格式，然后计算每个日期在一年中的第几天，并将结果保存在名为`day_of_year`的新列中。这样可以方便地了解每个日期在一年中的位置，用于后续的时间分析和处理。
+
+---
+
+---
+url: /blog/hqtyrlwg/index.md
+---
+`Hyprland`桌面，`QQ`无法使用`fcitx5`输入中文，在此记录解决方法。
+
+首先尝试添加如下参数打开qq
+
+```bash
+linuxqq --ozone-platform-hint=auto --enable-wayland-ime
+```
+
+打开成功且输入法使用成功的话，那么可以继续
+
+## 方法一：修改快捷方式
+
+找到对应的 `qq.desktop` 文件并在 `Exec` 行添加启动参数 `--ozone-platform-hint=auto --enable-wayland-ime`
+
+```ini
+Exec=linuxqq %U --ozone-platform-hint=auto --enable-wayland-ime`
+```
+
+## 方法二：修改启动脚本
+
+缺点是以后升级版本大概率要重新修改
+
+```bash
+sudo vim /usr/bin/linuxqq
+```
+
+在中间添加环境变量，并修改最后一行：
+
+```bash
+export GTK_IM_MODULE=fcitx
+export QT_IM_MODULE=fcitx
+export XMODIFIERS=@im=fcitx
+
+# exec /opt/QQ/qq ${QQ_USER_FLAGS[@]} "$@"
+exec /opt/QQ/qq ${QQ_USER_FLAGS[@]} --ozone-platform-hint=auto --enable-wayland-ime "$@"
+```
+
+---
+
+---
+url: /blog/kekn0l70/index.md
+---
+# 子区间前缀和总和的第 k 小值
+## 子区间前缀和总和的第 k 小值
+
+### 问题描述
+
+给定一个长度为 $n$ 的整数序列 $a\_1, a\_2, \dots, a\_n$。定义函数 $f(l, r)$ 如下：
+
+$$
+f(l, r) = \sum\_{i=l}^{r} \left( \sum\_{t=l}^{i} a\_t \right)
+$$
+
+该函数表示对于区间 $\[l, r]$，计算所有以 $l$ 为起点、终点分别为 $l, l+1, \dots, r$ 的子区间和的总和。
+
+现要求在所有可能的 $\frac{n(n+1)}{2}$ 个区间 $\[l, r]$（其中 $1 \le l \le r \le n$）中，按 $f(l, r)$ 的数值从小到大排序（数值相同时按出现次数计入多次），输出第 $k$ 小的 $f(l, r)$ 的值。
+
+### 输入描述
+
+每个测试文件均包含多组测试数据。
+
+* 第一行输入一个整数 $T$（$1 \le T \le 10^5$），代表数据组数。
+* 每组测试数据描述如下：
+  * 第一行输入两个整数 $n, k$（$1 \le n \le 2 \times 10^5$，$1 \le k \le \frac{n(n+1)}{2}$）。
+  * 第二行输入 $n$ 个整数 $a\_1, \dots, a\_n$（$0 \le a\_i \le 10^6$）。
+
+**保证**：所有测试用例中 $n$ 的总和不超过 $5 \times 10^5$。
+
+### 输出描述
+
+对于每组测试数据，输出一个整数，表示所有区间中第 $k$ 小的 $f(l, r)$ 的值。
+
+## 解题思路
+
+### 公式简化
+
+$f(l, r) = \sum\_{i=l}^r \left( \sum\_{t=l}^i a\_t \right)$。
+
+为了避免重复计算，可以使用前缀和优化
+
+令 $S\_i = \sum\_{t=1}^i a\_t$ 为前缀和，则 $\sum\_{t=l}^i a\_t = S\_i - S\_{l-1}$，可得：
+
+$$
+f(l, r) = \sum\_{i=l}^r (S\_i - S\_{l-1}) = \left( \sum\_{i=l}^r S\_i \right) - (r - l + 1) S\_{l-1}
+$$
+
+令 $SS\_i = \sum\_{j=1}^i S\_j$ 为前缀和的前缀和，带入 $f(l, r)$：
+
+$$
+f(l, r) = (SS\_r - SS\_{l-1}) - (r - l + 1) S\_{l-1}
+$$
+利用这个公式，我们可以在 $O(1)$ 时间内计算任意区间的 $f(l, r)$。
+
+### 二分答案
+
+$n=2 \times 10^5$，直接排序所有 $O(n^2)$ 个值是不可能的
+
+由于 $a\_i \ge 0$，随着区间长度增加或包含的元素变大，$f(l, r)$ 的值具有单调性。因此，我们**二分枚举第 $k$ 小的值 $X$**。
+我们需要一个函数 `count(X)`，计算有多少个区间的 $f(l, r) \le X$。如果 `count(X) >= k`，说明第 $k$ 小的值可能更小；否则说明更大。
+
+### 滑动窗口计数
+
+对于固定的 $l$，当 $r$ 增大时，$f(l, r)$ 是非递减的。
+对于固定的 $r$，当 $l$ 减小时，$f(l, r)$ 也是非递减的。
+因此，对于 `count(X)`，我们可以使用双指针：
+
+* 遍历左端点 $l$ 从 $1$ 到 $n$。
+* 右端点 $r$ 随着 $l$ 的右移也只会向右移动或保持不动（因为 $l$ 增加，$f(l, r)$ 减小，原来的 $r$ 可能可以往后挪）。
+* 这样可以在 $O(n)$ 时间内统计出所有满足 $f(l, r) \le X$ 的区间个数。
+
+### 解题代码（ACM模式）
+
+::: code-tabs
+@tab Java
+
+```java
+import java.io.*;
+import java.util.*;
+
+public class Main {
+    static long[] s;
+    static long[] ss;
+
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringBuilder sb = new StringBuilder();
+
+        int T = Integer.parseInt(br.readLine());
+        while (T-- > 0) {
+            StringTokenizer st = new StringTokenizer(br.readLine());
+            int n = Integer.parseInt(st.nextToken());
+            long k = Long.parseLong(st.nextToken());
+
+            s = new long[n + 1];
+            ss = new long[n + 1];
+            st = new StringTokenizer(br.readLine());
+            for (int i = 0; i < n; i++) {
+                long a_i = Long.parseLong(st.nextToken());
+                s[i + 1] = s[i] + a_i;
+                ss[i + 1] = ss[i] + s[i + 1];
+            }
+
+            long low = 0;
+            long high = fun(1, n);
+
+            while (low < high) {
+                long mid = low + (high - low) / 2;
+                if (countLessEqual(mid, n) >= k) {
+                    high = mid;
+                } else {
+                    low = mid + 1;
+                }
+            }
+            sb.append(low).append("\n");
+        }
+        System.out.print(sb);
+    }
+
+    /**
+     * 使用双指针统计 f(l, r) <= limit 的区间数量
+     */
+    static long countLessEqual(long limit, int n) {
+        long count = 0;
+        int r = 1;
+        for (int l = 1; l <= n; l++) {
+            // 确保 r 不小于左边界
+            if (r < l) r = l;
+            while (r <= n && fun(l, r) <= limit) {
+                r++;
+            }
+            count += r - l;
+        }
+        return count;
+    }
+
+    static long fun(int l, int r) {
+        return ss[r] - ss[l - 1] - (long) (r - l + 1) * s[l - 1];
+    }
+}
+```
+
+:::
+
+* 时间复杂度：$O(n \log(\text{max\_val}))$，其中 $\text{max\_val}$ 为 $f(1, n)$ 的最大值），此题中约为 $2 \times 10^{16}$。
+
+> 思考：`while (r <= n && fun(l, r) <= limit) { r++; }` 处只能保证 `r` 为第一个不合法位置，为什么 `r` 不用回退？
+>
+> 回答：即使 `fun(l + 1, r)` 依然不能小于 `limit`，`fun(l + 1, r - 1)` 也是一定小于 `limit` 的，最终退出循环的状态并不会有区别。
+
+---
+
+---
+url: /blog/krfoqzqt/index.md
+---
+# macOS 移除卸载后仍残留在 App 后台活动的选项
+## Problem
+
+After uninstalling an app the app may still show under:
+
+System Settings -> General -> Login Items -> Allow in the Background
+
+## Solution
+
+Follow these step to remove the background item:
+
+Note down the enabled/disabled state of all existing background items. We will need to reset these states later.
+
+Optional: Run `sudo sfltool dumpbtm` to list all background item info and check that the one to remove is listed.
+
+Run `sudo sfltool resetbtm` to reset login and background item data. This also enables all background items.
+
+Restart the computer. The leftover background item should now be gone.
+
+Reset remaining background items back to their original enabled/disabled state.
+
+## Other way
+
+### Applications that run on Startup (Run in Terminal)
+
+```shell
+ls -lah /Library/StartupItems
+```
+
+### Property list (plist) items running on startup
+
+```shell
+ls -lah /Library/LaunchDaemons
+ls -lah /System/Library/LaunchDaemons
+```
+
+### Applications that launch on User Login
+
+```shell
+ls -lah /Library/LaunchAgents
+ls -lah ~/Library/LaunchAgents
+ls -lah /System/Library/LaunchAgents
+```
+
+### Applications that run on a set schedule
+
+```shell
+crontab -l
+```
+
+### Kernel Extensions
+
+```shell
+kextstat
+```
+
+### Login and Logout Hooks
+
+```shell
+defaults read com.apple.loginwindow LoginHook
+defaults read com.apple.loginwindow LogoutHook
+```
+
+---
+
+---
+url: /blog/ky8eyf1y/index.md
+---
+# 大模型推理加速：KV Cache
+KV Cache是Transformer标配的推理加速功能，其只能用于Decoder架构的模型，这是因为 Decoder 有 Causal Mask，在推理的时候前面已经生成的字符不需要与后面的字符产生 attention，从而使得前面已经计算的 K 和 V 可以缓存起来。
+
+**KV Cache 的核心思想**：在自回归解码时，每一步只需计算新 token 的 Query、Key、Value，而之前所有 token 的 Key 和 Value 可以直接复用，从而避免重复计算。
+
+可以说，KV Cache 的本质是增量式的注意力计算。
+
+## 符号定义
+
+* 序列已生成的前缀：$x\_1, x\_2, \dots, x\_{t-1}$，当前步输入 token $x\_t$（嵌入向量）。设总序列长度为 $t$。
+
+* 模型维度和单头注意力（为简洁，省略多头拼接，实际就是每个头独立做相同操作）：
+
+  * 输入嵌入矩阵 $X\_t \in \mathbb{R}^{t \times d\_{\text{model}}}$
+
+  * 权重矩阵 $W\_Q, W\_K, W\_V \in \mathbb{R}^{d\_{\text{model}} \times d\_k}$ （假设 $d\_k = d\_v$）。
+
+  * 投影后的 Query、Key、Value：
+    $$
+    Q\_t = X\_t W\_Q,\quad K\_t = X\_t W\_K,\quad V\_t = X\_t W\_V \quad \in \mathbb{R}^{t \times d\_k}
+    $$
+
+## 没有缓存的标准自注意力
+
+在生成 $t$ 个 token 的表示时（即用前 $t$ 个 token 预测第 $t+1$ 个 token），标准缩点积注意力为：
+$$
+Attention(Q\_t, K\_t, V\_t) = \text{softmax}!\left(\frac{Q\_t K\_t^T}{\sqrt{d\_k}} + M\_t\right) V\_t
+$$
+其中因果掩码 $M\_t$ 保证位置 $i$ 只能看到 $j \le i$（下三角为 0，上三角为 $-\infty$）。
+
+例如，给定“天气”，模型会逐个预测剩下的字，假设接下来预测的两个字为“真好“。
+
+* 第一步会预测”真“
+
+![不使用 KV Cache 1](https://pic1.zhimg.com/v2-85c2415e824044db10d72f828684a190_r.jpg)
+
+* 第二步会将”真“拼接到”天气“的后面，即新的输入为”天气真“，再预测”好“
+
+  而在这个自回归的过程中，第二部只有红色的部分是真正需要计算的，其他部分的计算大多数是上一步已经实现过的。
+
+![不使用 KV Cache 2](https://pic2.zhimg.com/v2-4d4fa3b3dc5a049017a0a91f9e7d1e2d_r.jpg)
+
+## KV Cache 的增量公式推导
+
+注意到当序列由 $X\_{t-1}$ 追加一个新 token $x\_t$ 时：
+$$
+X\_t = \begin{bmatrix} X\_{t-1} \ x\_t \end{bmatrix}
+$$
+根据 $K\_t = X\_t W\_K$ 和 $V\_t = X\_t W\_V$ 的线性性质：
+$$
+K\_t = \begin{bmatrix} X\_{t-1} W\_K \ x\_t W\_K \end{bmatrix} = \begin{bmatrix} K\_{t-1} \ k\_t \end{bmatrix}, \quad
+V\_t = \begin{bmatrix} V\_{t-1} \ v\_t \end{bmatrix}
+$$
+其中：
+
+* 历史缓存 $K\_{t-1}, V\_{t-1} \in \mathbb{R}^{(t-1) \times d\_k}$ 是第 $t-1$ 步结束后存储的 Key 和 Value。
+* 当前新增的 Key 和 Value：$k\_t = x\_t W\_K,; v\_t = x\_t W\_V \in \mathbb{R}^{1 \times d\_k}$。
+
+$K\_{t-1}$ 和 $V\_{t-1}$ 在后续步中不会改变，可以被永久缓存。
+
+![使用 KV Cache计算](https://pic2.zhimg.com/v2-eb61b172f71c9366d5bfa4ae0a67b193_r.jpg)
+
+计算第 $t$ 步的注意力得分（Attention Scores），我们需要将当前的查询向量 $q\_t$ 与所有的键 $K\_{t}$ 进行点积运算：
+$$\text{Score}*t = \frac{q\_t K*{t}^T}{\sqrt{d\_k}} = \frac{q\_t \begin{bmatrix} K\_{t-1}^T & k\_t^T \end{bmatrix}}{\sqrt{d\_k}}$$
+
+展开后得到一个长度为 $t$ 的行向量，代表当前 token 对历史所有 token 的注意力权重：
+$$\text{Score}*t = \begin{bmatrix} \frac{q\_t K*{t-1}^T}{\sqrt{d\_k}} & \frac{q\_t k\_t^T}{\sqrt{d\_k}} \end{bmatrix}$$
+
+接着，应用 Softmax 函数进行归一化：
+$$A\_t = \text{softmax}(\text{Score}*t) = \begin{bmatrix} a*{t,1}, a\_{t,2}, \dots, a\_{t,t-1}, a\_{t,t} \end{bmatrix}$$
+
+最后，将注意力权重与完整的值矩阵 $V\_{1:t}$ 相乘，得到输出 $o\_t$：
+$$o\_t = A\_t V\_{t} = \begin{bmatrix} A\_{t,1:t-1} & a\_{t,t} \end{bmatrix} \begin{bmatrix} V\_{t-1} \ v\_t \end{bmatrix}$$
+$$o\_t = A\_{t,1:t-1} \cdot V\_{t-1} + a\_{t,t} \cdot v\_t$$
+
+计算完毕后，我们将当前的 $k\_t$ 和 $v\_t$ \*\*追加写入（Append）\*\*到缓存中，更新缓存状态，供第 $t+1$ 步使用：
+$$\text{Cache}\_K \leftarrow \[ \text{Cache}\_K, k\_t ]$$
+$$\text{Cache}\_V \leftarrow \[ \text{Cache}\_V, v\_t ]$$
+
+## KV Cache 的显存代价
+
+KV Cache 是以显存换计算速度的典型权衡。它的显存占用量与以下因素成正比：
+
+* 序列长度：序列越长，缓存越大
+* 模型层数：每一层 Transformer 都有独立的 KV Cache
+* 隐藏层维度（hidden dim）：维度越大，每个 token 的 KV 向量越大
+* 并发请求数量（batch size）：每个请求有独立的 KV Cache
+
+以 LLaMA-2 70B 模型为例，在 4096 token 的序列长度下，单个请求的 KV Cache 就可能超过 4GB。这是大模型推理中显存瓶颈的主要来源之一，直接限制了可并发处理的请求数量。
+
+## 思考：Attention 是否需要缓存
+
+虽然 $Attention(Q\_t, K\_t, V\_t)$ 本身也能增量计算，但不同于训练过程中需要并行，在推理过程中，只需要使用其最后一维 $o\_t$ 计算预测结果，其他部分并不会实际参与计算，故也就不需要缓存。
+
+这也是使用标准公式直接计算注意力效率低下的另一个原因（因为Attention的其他维度没被使用，相当于不必要的计算量）
+
+> 文中图片转载来源：[知乎专栏](https://zhuanlan.zhihu.com/p/673923443)
+
+---
+
+---
+url: /blog/myzlxams/index.md
+---
+# 搜索旋转排序数组
+## 33. 搜索旋转排序数组
+
+## 解法一：两次二分查找
+
+先按照 [寻找旋转排序数组中的最小值](./find-minimum-in-rotated-sorted-array.md) 的思路找出分界点，确定要查找的值位于左半边还是右半边，再使用一次二分查找找出目标值。
+
+::: code-tabs
+@tab Java
+
+```java
+class Solution {
+    public int search(int[] nums, int target) {
+        int i = findMin(nums);
+        if (nums[nums.length - 1] >= target) {
+            return binarySearch(nums, i, nums.length, target);
+        }
+        return binarySearch(nums, 0, i, target);
+    }
+
+    public int findMin(int[] nums) {
+        int n = nums.length;
+        int left = 0, right = n - 1;
+        while (left < right) {
+            int mid = left + (right - left) / 2;
+            if (nums[mid] > nums[n - 1]) {
+                left = mid + 1;
+            } else {
+                right = mid;
+            }
+        }
+        return left;
+    }
+
+    private int binarySearch(int[] nums, int left, int right, int target) {
+        while (left < right) {
+            int mid = left + (right - left) / 2;
+            if (nums[mid] >= target) {
+                right = mid;
+            } else {
+                left = mid + 1;
+            }
+        }
+        return nums[right] == target ? right : -1;
+    }
+}
+```
+
+:::
+
+## 解法二：一次二分查找
+
+将解法一两次二分合并，大体思路为，在不同侧时，转向 `target` 所在侧查找，相同侧时，依据 `nums[mid]` 与 `target` 大小关系查找。
+
+> 写法需要一定时间思考，面试时优先考虑方法一吧
+
+::: code-tabs
+@tab Java
+
+```java
+class Solution {
+    public int search(int[] nums, int target) {
+        int last = nums[nums.length - 1];
+        int left = -1;
+        int right = nums.length - 1; // 开区间 (-1, n-1)
+        while (left + 1 < right) {
+            int mid = (left + right) >>> 1;
+            int x = nums[mid];
+            // target 在第一段，x 在第二段
+            if (target > last && x <= last) { 
+                right = mid;
+            } 
+            // x 在第一段，target 在第二段
+            else if (x > last && target <= last) {
+                left = mid; // 下轮循环去右边找
+            } 
+            // 否则，x 和 target 在同一段，这就和方法一的 lowerBound 一样了
+            else if (x >= target) {
+                right = mid;
+            } else {
+                left = mid;
+            }
+        }
+        return nums[right] == target ? right : -1;
+    }
+}
+
+作者：灵茶山艾府
+链接：https://leetcode.cn/problems/search-in-rotated-sorted-array/solutions/
+来源：力扣（LeetCode）
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+```
+
+:::
+
+---
+
+---
+url: /blog/nuhr4e2k/index.md
+---
+## 标题H2
+
+### 标题H3
+
+#### 标题H4
+
+##### 标题H5
+
+###### 标题H6
+
+## 标题2 Badge&#x20;
+
+### 标题3 Badge&#x20;
+
+#### 标题4 Badge&#x20;
+
+正文内容。
+
+`@property` CSS at-rule是 [CSS Houdini API](https://developer.mozilla.org/zh-CN/docs/Web/Guide/Houdini)
+的一部分，它允许开发者显式地定义他们的 [CSS 自定义属性](https://developer.mozilla.org/zh-CN/docs/Web/CSS/--*),
+允许进行属性类型检查、设定默认值以及定义该自定义属性是否可以被继承。
+
+`@property` 的出现，极大的增强了 CSS 的能力。
+
+加粗：**加粗文字**
+
+斜体： *斜体文字*
+
+\~~删除文字~~
+
+内容 ==标记==
+
+数学表达式： $-(2^{n-1})$ ~ $2^{n-1} -1$
+
+$\frac {\partial^r} {\partial \omega^r} \left(\frac {y^{\omega}} {\omega}\right)
+\= \left(\frac {y^{\omega}} {\omega}\right) \left{(\log y)^r + \sum\_{i=1}^r \frac {(-1)^ Ir \cdots (r-i+1) (\log y)^{ri}} {\omega^i} \right}$
+
+19^th^
+
+H~2~O
+
+::: center
+内容居中
+:::
+
+::: right
+内容右对齐
+:::
+
+* 无序列表1
+* 无序列表2
+* 无序列表3
+
+1. 有序列表1
+2. 有序列表2
+3. 有序列表3
+
+* \[ ] 任务列表1
+* \[ ] 任务列表2
+* \[x] 任务列表3
+* \[x] 任务列表4
+
+| Tables        | Are           | Cool  |
+| ------------- |:-------------:| -----:|
+| col 3 is      | right-aligned | $1600 |
+| col 2 is      | centered      |   $12 |
+| zebra stripes | are neat      |    $1 |
+
+> 引用内容
+>
+> 引用内容
+
+[链接](/)
+
+[外部链接](https://github.com/pengzhanbo)
+
+![plume](/plume.svg)
+
+**Badge：**
+
+**图标：**
+
+* home -&#x20;
+* vscode -&#x20;
+* twitter -&#x20;
+
+**示例容器：**
+
+::: window title="示例" height="200px"
+
+:::
+
+**代码：**
+
+```js whitespace
+const a = 1
+const b = 2
+const c = a + b
+
+// [!code word:obj]
+const obj = {
+  toLong: {
+    deep: {
+      deep: {
+        deep: {
+          value: 'this is to long text. this is to long text. this is to long text. this is to long text.', // [!code highlight]
+        }
+      }
+    }
+  }
+}
+```
+
+**代码分组：**
+
+::: code-tabs
+@tab tab1
+
+```js
+const a = 1
+const b = 2
+const c = a + b
+```
+
+@tab tab2
+
+```ts
+const a: number = 1
+const b: number = 2
+const c: number = a + b
+```
+
+:::
+
+**代码块高亮：**
+
+```ts
+function foo() {
+  const a = 1 // [!code highlight]
+
+  console.log(a)
+
+  const b = 2 // [!code ++]
+  const c = 3 // [!code --]
+
+  console.log(a + b + c) // [!code error]
+  console.log(a + b) // [!code warning]
+}
+```
+
+**代码块聚焦：**
+
+```ts
+function foo() {
+  const a = 1 // [!code focus]
+}
+```
+
+::: tip 仅标题
+:::
+
+::: note 注释
+注释内容 [link](https://github.com/pengzhanbo) `inline code`
+
+```js
+const a = 1
+const b = 2
+const c = a + b
+```
+
+:::
+
+::: info 信息
+信息内容 [link](https://github.com/pengzhanbo) `inline code`
+
+```js
+const a = 1
+const b = 2
+const c = a + b
+```
+
+:::
+
+::: tip 提示
+提示内容 [link](https://github.com/pengzhanbo) `inline code`
+
+```js
+const a = 1
+const b = 2
+const c = a + b
+```
+
+:::
+
+::: warning 警告
+警告内容 [link](https://github.com/pengzhanbo) `inline code`
+
+```js
+const a = 1
+const b = 2
+const c = a + b
+```
+
+:::
+
+::: caution 错误
+错误内容 [link](https://github.com/pengzhanbo) `inline code`
+
+```js
+const a = 1
+const b = 2
+const c = a + b
+```
+
+:::
+
+::: important 重要
+重要内容 [link](https://github.com/pengzhanbo) `inline code`
+
+```js
+const a = 1
+const b = 2
+const c = a + b
+```
+
+:::
+
+::: details 详细标题
+
+这里是内容。
+:::
+
+**GFM alert：**
+
+> \[!note]
+> note
+
+> \[!info]
+> info
+
+> \[!tip]
+> tip
+
+> \[!warning]
+> warning
+
+> \[!caution]
+> caution
+
+> \[!important]
+> important
+
+**代码演示：**
+
+:::: demo title="常规示例" desc="一个常规示例"
+
+::: code-tabs
+@tab HTML
+
+```html
+<div id="app">
+  <h3>vuepress-theme-plume</h3>
+</div>
+```
+
+@tab Javascript
+
+```js
+const a = 'So Awesome!'
+const app = document.querySelector('#app')
+app.appendChild(window.document.createElement('small')).textContent = a
+```
+
+@tab CSS
+
+```css
+#app {
+  font-size: 2em;
+  text-align: center;
+}
+```
+
+:::
+::::
+
+**选项卡：**
+
+::: tabs
+@tab 标题1
+内容区块
+
+@tab 标题2
+内容区块
+:::
+
+:::: warning
+::: tabs
+@tab 标题1
+内容区块
+
+@tab 标题2
+内容区块
+:::
+::::
+
+**脚注：**
+
+脚注 1 链接\[^first]。
+
+脚注 2 链接[^second]。
+
+行内的脚注^\[行内脚注文本] 定义。
+
+重复的页脚定义[^second]。
+
+\[^first]: 脚注 **可以包含特殊标记**
+
+```
+也可以由多个段落组成
+```
+
+[^second]: 脚注文字。
+
+---
+
+---
+url: /blog/ofpnpou0/index.md
+---
+# ThreadLocal 在后端开发的使用场景
+在 Spring 后端开发中，通常需要在请求处理的各个层级（Controller、Service、Mapper 等）获取当前登录用户的信息，例如员工 ID。传统做法是通过方法参数层层传递，但这种方式存在明显缺陷：
+
+* 方法签名冗余，每个方法都需要额外声明 `empId` 参数
+* 代码侵入性强，修改业务逻辑时需同步调整参数传递链路
+* 维护成本高，新增调用点容易遗漏参数传递
+
+```java
+// Controller 层
+public Result delete(@PathVariable Long id, @RequestHeader("empId") Long empId) {
+    return service.delete(id, empId);
+}
+
+// Service 层
+public void delete(Long id, Long empId) {
+    mapper.updateStatus(id, 0, empId);
+    auditLog(id, empId); // 仍需继续传递
+}
+
+// Mapper 或工具类
+public void auditLog(Long id, Long empId) {
+    // 记录操作日志
+}
+```
+
+## ThreadLocal 解决方案
+
+通过 `ThreadLocal` 实现请求上下文的线程内共享，可避免参数层层传递：
+
+```java
+// 上下文工具类
+public class BaseContext {
+    private static final ThreadLocal<Long> threadLocal = new ThreadLocal<>();
+
+    public static void setCurrentId(Long id) {
+        threadLocal.set(id);
+    }
+
+    public static Long getCurrentId() {
+        return threadLocal.get();
+    }
+
+    public static void removeCurrentId() {
+        threadLocal.remove();
+    }
+}
+```
+
+在拦截器中设置上下文：
+
+```java
+@Component
+@Slf4j
+public class JwtTokenAdminInterceptor implements HandlerInterceptor {
+
+    @Autowired
+    private JwtProperties jwtProperties;
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, 
+                           HttpServletResponse response, 
+                           Object handler) throws Exception {
+        // 非 Controller 方法直接放行
+        if (!(handler instanceof HandlerMethod)) {
+            return true;
+        }
+
+        // 1. 从请求头获取令牌
+        String token = request.getHeader(jwtProperties.getAdminTokenName());
+
+        // 2. 校验令牌并提取用户信息
+        try {
+            Claims claims = JwtUtil.parseJWT(jwtProperties.getAdminSecretKey(), token);
+            Long empId = Long.valueOf(claims.get(JwtClaimsConstant.EMP_ID).toString());
+            
+            // 3. 存入 ThreadLocal，供后续业务使用
+            BaseContext.setCurrentId(empId);
+            return true;
+        } catch (Exception ex) {
+            response.setStatus(401);
+            return false;
+        }
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, 
+                              HttpServletResponse response, 
+                              Object handler, Exception ex) {
+        // 4. 请求结束后清理上下文，防止内存泄漏
+        BaseContext.removeCurrentId();
+    }
+}
+```
+
+使用时无需修改方法签名，任意层级均可获取当前用户 ID：
+
+```java
+// Service 层
+public void delete(Long id) {
+    Long empId = BaseContext.getCurrentId(); // 直接获取
+    mapper.updateStatus(id, 0, empId);
+}
+```
+
+## 为什么使用 ThreadLocal
+
+### Web 容器的线程模型
+
+```text
+请求 A → Tomcat 线程池 Thread-1 → 完整处理流程
+请求 B → Tomcat 线程池 Thread-2 → 完整处理流程
+```
+
+* 每个 HTTP 请求由独立线程处理
+* `ThreadLocal` 为每个线程提供独立的数据副本
+* 请求间数据天然隔离，Thread-1 设置的 `empId=1001` 不会影响 Thread-2 的 `empId=1002`
+
+### 底层实现原理
+
+```java
+// Thread 类内部维护 ThreadLocalMap
+class Thread {
+    ThreadLocalMap threadLocals;
+}
+
+// ThreadLocalMap 结构
+class ThreadLocalMap {
+    static class Entry extends WeakReference<ThreadLocal<?>> {
+        Object value; // 存储的实际数据，如 Long empId
+    }
+    Entry[] table; // 哈希表存储所有 ThreadLocal 变量
+}
+```
+
+数据存取本质是 `当前线程.threadLocals.get(this)`，无需加锁即可保证线程安全。
+
+## 关键注意事项：必须调用 remove()
+
+### 不清理的风险
+
+Tomcat 等 Web 容器使用线程池复用线程。若请求结束后未清理 `ThreadLocal`：
+
+```text
+时序示例：
+1. 请求 1 由 Thread-1 处理，设置 empId=1001
+2. 请求 1 结束，未调用 remove()，Thread-1 返回线程池
+3. 请求 2 复用 Thread-1，调用 getCurrentId() 错误获取到 1001
+```
+
+**后果**：
+
+* 数据泄露：后续请求可能读取到前一个请求的上下文数据
+* 内存泄漏：`ThreadLocal` 的 key 是弱引用，但 value 是强引用。若线程长期存活（如线程池），value 无法被回收
+
+### 正确的清理方式
+
+方案一：拦截器中统一清理（推荐）
+
+```java
+@Override
+public void afterCompletion(HttpServletRequest request, 
+                          HttpServletResponse response, 
+                          Object handler, Exception ex) {
+    BaseContext.removeCurrentId();
+}
+```
+
+方案二：业务代码中使用 try-finally
+
+```java
+try {
+    BaseContext.setCurrentId(empId);
+    // 执行业务逻辑
+} finally {
+    BaseContext.removeCurrentId();
+}
+```
+
+## 异步场景的处理
+
+`ThreadLocal` 的数据绑定于当前线程，在异步执行时（如 `@Async`、`CompletableFuture`、线程池提交任务）会丢失上下文：
+
+```java
+// ❌ 错误示例：子线程无法获取父线程的 ThreadLocal 值
+CompletableFuture.runAsync(() -> {
+    Long empId = BaseContext.getCurrentId(); // 返回 null
+});
+```
+
+### 解决方案
+
+方案一：手动传递上下文
+
+```java
+Long empId = BaseContext.getCurrentId();
+CompletableFuture.runAsync(() -> {
+    try {
+        BaseContext.setCurrentId(empId);
+        // 子线程业务逻辑
+    } finally {
+        BaseContext.removeCurrentId();
+    }
+});
+```
+
+方案二：使用 TransmittableThreadLocal（推荐）
+
+阿里开源的 [TransmittableThreadLocal](https://github.com/alibaba/transmittable-thread-local) 可自动在线程池复用或子线程创建时传递上下文：
+
+```java
+// 替换 ThreadLocal 声明
+private static final TransmittableThreadLocal<Long> threadLocal = new TransmittableThreadLocal<>();
+
+// 需配合 TTL 装饰线程池
+ExecutorService executor = TtlExecutors.getTtlExecutorService(Executors.newFixedThreadPool(10));
+```
+
+## 总结
+
+`BaseContext.setCurrentId(empId)` 的核心价值在于：
+
+> 将当前请求的操作人 ID 安全地绑定到处理该请求的线程，使同线程内的所有代码层级均可无侵入地获取上下文信息，使用完毕后及时清理以避免副作用。
+
+**使用要点**：
+
+1. 适用于请求生命周期内的上下文传递，如用户信息、租户 ID、链路追踪 ID 等
+2. 严格遵循 `set → get → remove` 的闭环管理
+3. 异步场景需额外处理上下文传递
+4. 避免在 `ThreadLocal` 中存储大对象，防止内存占用过高
+
+通过合理使用 `ThreadLocal`，可显著降低业务代码的耦合度，提升系统的可维护性与扩展性。
+
+---
+
+---
+url: /blog/ovvcr4gy/index.md
+---
+# 寻找旋转排序数组中的最小值
+## 153. 寻找旋转排序数组中的最小值
+
+已知一个长度为 n 的数组，预先按照升序排列，经由 1 到 n 次 旋转 后，得到输入数组。例如，原数组 nums = \[0,1,2,4,5,6,7] 在变化后可能得到：
+
+## 思路
+
+判断 `nums[mid]` 和数组最小值的位置关系:
+
+把 `nums[mid]` 与最后一个数 `nums[n−1]` 比大小：
+
+如果 `nums[mid] > nums[n−1]`，那么可以推出以下结论：
+
+* nums 一定被分成左右两个递增段；
+* 第一段的所有元素均大于第二段的所有元素；
+* `mid` 在第一段，而最小值在第二段。
+
+此时缩短左边界
+
+如果 `nums[mid] <= nums[n−1]`，那么 `mid` 和最小值均一定在第二段，或者 nums 就是递增数组，此时只有一段。
+
+此时缩短右边界
+
+### 特殊情况
+
+常规二分初始区间为 `[0, n)`，在当前场景下，由于每次比较的对象为 `nums[n - 1]`，当最小值位于 `n - 1` 时，无论移动左边界还是右边界都会导致正确答案被排出二分区间，导致循环不变量`[left,right) 中有最小值`失效。
+
+由于无论数组如何旋转，`n - 1` 均处于蓝色区间，可将区间设为 `[0, n - 1)`，此时仅当最小值位于 `n - 1` 时循环过程存在区别，该情况下区间中所有的数均大于 `num[n - 1]`，始终移动 `left` 最终 `left = rigth = n - 1`。
+
+## 解题代码
+
+::: code-tabs
+@tab Java
+
+```java
+class Solution {
+    public int findMin(int[] nums) {
+        int n = nums.length;
+        int left = 0, right = n - 1;
+        while (left < right) {
+            int mid = left + (right - left) / 2;
+            if (nums[mid] > nums[n - 1]) {
+                left = mid + 1;
+            } else {
+                right = mid;
+            }
+        }
+        return nums[left];
+    }
+}
+```
+
+:::
+
+注：由于 `mid` 始终不会等于 `n - 1` 故不需要关注此时应该移动 `left` 还是 `right`
+
+---
+
+---
+url: /blog/p469vbx4/index.md
+---
+# N 皇后
+## 51. N 皇后
+
+## 思路
+
+由于不同的皇后各自不能在同一行、同一列，即每一行、每一列均只能有一个皇后，记录每行的皇后放在哪一列，可以得到一个 \[0,n−1] 的全排列问题。
+
+对于皇后斜方位攻击的判别，在同一斜线的皇后，x、y坐标只和或者之差相等。可以分别用两个长度为 `2 * n - 1` 的数组记录斜线是否被占用。
+
+## 解题代码
+
+::: code-tabs
+@tab Java
+
+```java
+class Solution {
+    public List<List<String>> solveNQueens(int n) {
+        boolean[] visited = new boolean[n];
+        boolean[] diag1 = new boolean[n * 2 - 1];
+        boolean[] diag2 = new boolean[n * 2 - 1];
+        int[] queens = new int[n];
+        List<List<String>> result = new ArrayList<>();
+        dfs(0, queens, visited, diag1, diag2, result);
+        return result;
+    }
+
+    public void dfs(int idx, int[] queens, boolean[] visited, boolean[] diag1, boolean[] diag2,
+            List<List<String>> result) {
+        int n = queens.length;
+        if (idx == n) {
+            List<String> board = new ArrayList<>(n);
+            for (int queen : queens) {
+                char[] rowChars = new char[n];
+                Arrays.fill(rowChars, '.');
+                rowChars[queen] = 'Q';
+                board.add(new String(rowChars));
+            }
+            result.add(board);
+            return;
+        }
+        for (int i = 0; i < n; i++) {
+            int diag1Idx = i + idx;
+            int diag2Idx = i - idx + n - 1;
+            if (!visited[i] && !diag1[diag1Idx] && !diag2[diag2Idx]) {
+                visited[i] = diag1[diag1Idx] = diag2[diag2Idx] = true;
+                queens[idx] = i;
+                dfs(idx + 1, queens, visited, diag1, diag2, result);
+                visited[i] = diag1[diag1Idx] = diag2[diag2Idx] = false;
+            }
+        }
+    }
+}
+```
+
+:::
+
+---
+
+---
+url: /blog/p46jp1i4/index.md
+---
+# 在终端中将文本文件内容复制到系统剪贴板
+## 在终端中将文本文件内容复制到系统剪贴板
+
+对于不同的系统，需要使用不同工具实现
+
+### Linux 系统
+
+在 Linux 上，通常需要使用 `xclip` 或 `xsel` 等外部工具。
+
+::: code-tabs
+@tab Arch Linux
+
+```bash
+sudo pacman -S xclip
+```
+
+@tab Ubuntu/Debian
+
+```bash
+sudo apt install xclip
+```
+
+:::
+
+使用以下命令将文件内容复制到剪贴板：
+
+```bash
+xclip -selection clipboard < README.md
+```
+
+### macOS 系统
+
+macOS 自带了 `pbcopy` 命令
+
+```bash
+pbcopy < README.md
+```
+
+### Windows 系统
+
+在 Windows 10 (1803版本) 及更高版本中，可以使用内置的 `clip` 命令。
+
+```cmd
+clip < README.md
+```
+
+---
+
+---
+url: /blog/s2cq554o/index.md
+---
+# Spring 生态中的负载均衡
+在 Spring 生态中，目前负载均衡主要通过 **Spring Cloud LoadBalancer** 实现，属于**客户端负载均衡**（Client-Side Load Balancing）。它与 Spring Cloud 的服务注册中心、远程调用组件深度集成，是替代已废弃的 Netflix Ribbon 的官方标准方案。
+
+> 注意：Spring 的负载均衡是**客户端侧**实现的，即调用方在发起请求前，自行从注册中心获取实例列表并选择目标节点。区别于 Nginx/Gateway 等服务端负载均衡。
+
+## 工作原理
+
+1. **服务发现拉取实例**：通过 `ServiceInstanceListSupplier` 从注册中心（Nacos/Eureka/Consul 等）获取健康实例列表。
+2. **实例过滤与缓存**：默认剔除不健康实例，可选开启本地缓存减少注册中心压力。
+3. **策略选择实例**：由 `ReactorLoadBalancer<ServiceInstance>` 根据配置策略（默认轮询）选出目标实例。
+4. **拦截调用替换 URL**：将逻辑服务名（如 `http://order-service/api/xxx`）替换为真实 `ip:port` 后发起请求。
+
+核心接口：
+
+```java
+// 响应式负载均衡器（核心）
+public interface ReactorLoadBalancer<T> {
+    Mono<Response<T>> choose(Request request);
+}
+
+// 实例列表提供者
+public interface ServiceInstanceListSupplier extends Supplier<Flux<List<ServiceInstance>>> {}
+```
+
+## 集成方式
+
+### Spring Cloud OpenFeign
+
+Spring Cloud 2020.0.0+ 默认使用 LoadBalancer，无需额外配置：
+
+```java
+@FeignClient(name = "user-service")
+public interface UserClient {
+    @GetMapping("/api/users/{id}")
+    User getUser(@PathVariable Long id);
+}
+```
+
+> 💡 依赖要求：`spring-cloud-starter-openfeign` + `spring-cloud-starter-loadbalancer`
+
+### `RestTemplate` + `@LoadBalanced`
+
+::: details `RestTemplate` + `@LoadBalanced`
+
+```java
+@Configuration
+public class RestTemplateConfig {
+    @Bean
+    @LoadBalanced // 注入 LoadBalancerInterceptor
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+}
+
+// 使用
+restTemplate.getForObject("http://user-service/api/users", String.class);
+```
+
+:::
+
+### `WebClient`（响应式）
+
+::: details `WebClient`（响应式）
+
+```java
+@Bean
+public WebClient webClient(LoadBalancerExchangeFilterFunction lbFilter) {
+    return WebClient.builder()
+            .filter(lbFilter) // 注入负载均衡过滤器
+            .build();
+}
+```
+
+:::
+
+## 自定义与高级配置
+
+### 更换负载均衡策略（示例：随机策略）
+
+```java
+@Configuration
+@LoadBalancerClient(name = "user-service", configuration = RandomLBConfig.class)
+public class RandomLBConfig {
+    @Bean
+    public ReactorLoadBalancer<ServiceInstance> randomLoadBalancer(Environment env, LoadBalancerClientFactory factory) {
+        String name = env.getProperty(LoadBalancerClientFactory.PROPERTY_NAME);
+        return new RandomLoadBalancer(factory.getLazyProvider(name, ServiceInstanceListSupplier.class), name);
+    }
+}
+```
+
+> 内置策略：`RoundRobinLoadBalancer`（默认）、`RandomLoadBalancer`、`ZoneAvoidanceRule`（需自行实现）
+
+### 常见「调度算法」分类
+
+| 策略 | 说明 | 适用场景 |
+| ------ | ------ | ---------- |
+| **轮询（Round Robin）** | 依次分发请求 | 实例性能均匀、无状态服务 |
+| **加权轮询（Weighted RR）** | 按权重分配流量 | 实例规格不一（如 2C4G vs 8C16G） |
+| **最少连接（Least Connections）** | 优先发给当前活跃连接最少的实例 | 长连接、请求处理时长差异大的场景 |
+| **一致性哈希（Consistent Hash）** | 相同 key（如 user\_id）始终路由到同一实例 | 缓存亲和、会话保持、分布式事务 |
+| **地域/可用区感知（Zone-Aware）** | 优先调用同机房/同区域实例 | 跨地域部署、降低网络延迟 |
+| **动态反馈（Adaptive）** | 基于实时指标（CPU/RT/错误率）动态调整 | 高弹性场景，常与 Service Mesh 结合 |
+
+### 常用配置项（`application.yml`）
+
+```yaml
+spring:
+  cloud:
+    loadbalancer:
+      retry:
+        enabled: true          # 启用重试（需配合 spring-retry）
+      cache:
+        enabled: true          # 缓存实例列表，默认 30s
+        ttl: 60s
+      health-check:
+        refetch-instances-interval: 10s # 健康检查刷新间隔
+```
+
+### 结合注册中心特性
+
+* **Nacos**：自动同步权重、健康状态，LoadBalancer 默认过滤 `healthy=false` 的实例。
+* **Eureka**：需开启 `eureka.client.healthcheck.enabled=true` 保证状态准确。
+
+### 生产环境最佳实践
+
+| 场景 | 建议 |
+| ------ | ------ |
+| 策略选择 | 默认轮询满足 90% 场景；需权重/区域亲和时自定义或对接 Nacos 权重 |
+| 高可用 | 开启重试 + 熔断（Resilience4j/Sentinel），避免单点故障级联 |
+| 性能优化 | 启用实例缓存；合理设置连接池超时（`spring.cloud.loadbalancer.retry.max-retries`） |
+| 云原生演进 | 微服务规模大或跨集群时，可逐步迁移至 Service Mesh（Istio）实现透明负载均衡 |
+
+## 原理概述
+
+以 **Spring Cloud OpenFeign + Nacos** 为例，底层实现分为 **节点感知**、**负载决策**、**请求拦截与替换** 三个核心阶段。整体架构属于典型的 **客户端负载均衡 + 被动健康同步** 模式。
+
+### 整体调用链路（宏观）
+
+```text
+@FeignClient 方法调用
+  ↓
+FeignBlockingLoadBalancerClient 拦截请求
+  ↓
+调用 LoadBalancer.choose() → 触发 ServiceInstanceListSupplier 获取实例列表
+  ↓
+Nacos 本地缓存提供 List<ServiceInstance>（已过滤不健康节点）
+  ↓
+RoundRobinLoadBalancer 计算目标实例
+  ↓
+替换 Feign Request URL：http://user-service/api → http://192.168.1.10:8080/api
+  ↓
+底层 HTTP Client（OkHttp/Apache HttpClient）发起真实请求
+```
+
+### 节点感知：Nacos 如何实时同步实例状态
+
+#### 1. Nacos Client 订阅机制（长连接 + 本地缓存）
+
+* **启动拉取**：应用启动时，`NacosNamingService` 通过 HTTP/gRPC（Nacos 2.x 默认 gRPC 长连接）拉取指定服务的全量实例列表。
+* **服务端推送**：Nacos Server 维护服务实例变更事件，通过 **gRPC 长连接** 或 **UDP（1.x）** 主动推送增量变更到客户端。
+* **本地内存缓存**：客户端将实例列表存储在 `ServiceInfoHolder` 中，包含：
+
+  ```java
+  // 关键字段
+  private String serviceName;
+  private List<Instance> hosts; // 含 ip, port, weight, healthy, metadata
+  ```
+
+#### 2. 健康状态过滤（被动同步）
+
+* **Nacos 服务端健康检查**：由 Nacos Server 通过 TCP/HTTP/MySQL 等方式主动探测实例，标记 `healthy=true/false`。
+* **客户端不主动探测**：Spring Cloud LoadBalancer **不自行发心跳**，完全依赖 Nacos 推送的 `healthy` 状态。
+* **过滤逻辑**：`ServiceInstanceListSupplier` 默认包装 `HealthCheckServiceInstanceListSupplier`，自动剔除 `healthy=false` 的实例。
+
+### 负载分配：LoadBalancer 如何做路由决策
+
+#### 1. 核心接口与默认策略
+
+* **负载均衡器**：`ReactorLoadBalancer<ServiceInstance>`（底层基于 Project Reactor）
+* **默认策略**：`RoundRobinLoadBalancer`
+
+  ```java
+  // 简化核心逻辑
+  public Mono<Response<ServiceInstance>> choose(Request request) {
+      List<ServiceInstance> instances = supplier.get().collectList().block();
+      int position = this.position.incrementAndGet(); // AtomicLong 线程安全
+      int index = Math.abs(position) % instances.size();
+      return Mono.just(new DefaultResponse<>(instances.get(index)));
+  }
+  ```
+
+  > 📌 注意：默认轮询 **不感知 Nacos 权重**。若需加权轮询，需引入 `spring-cloud-starter-alibaba-nacos-loadbalancer` 或自定义 `ReactorLoadBalancer`。
+
+#### 2. 策略执行流程
+
+1. `LoadBalancerClientFactory` 按服务名隔离配置
+2. 调用 `ServiceInstanceListSupplier.get()` 获取实例流（`Flux<List<ServiceInstance>>`）
+3. 过滤不健康实例、按元数据排序
+4. 交由 `ReactorLoadBalancer` 计算目标节点
+5. 返回 `Response<ServiceInstance>` 供上层使用
+
+### Feign 集成：请求拦截与 URL 动态替换
+
+#### 1. 拦截器注入
+
+Spring Cloud 自动配置 `FeignBlockingLoadBalancerClient`，替换 Feign 默认的 `Client.Default`：
+
+```java
+public class FeignBlockingLoadBalancerClient implements Client {
+    private final LoadBalancerClient loadBalancerClient;
+    
+    public Response execute(Request request, Request.Options options) {
+        URI originalUri = URI.create(request.url());
+        String serviceId = originalUri.getHost(); // 如 "user-service"
+        
+        // 1. 负载均衡选节点
+        ServiceInstance instance = loadBalancerClient.choose(serviceId);
+        
+        // 2. 替换 URL
+        String reconstructedUrl = loadBalancerClient.reconstructURI(instance, originalUri).toString();
+        Request newRequest = Request.create(..., reconstructedUrl, ...);
+        
+        // 3. 交给底层 HTTP Client 执行
+        return delegate.execute(newRequest, options);
+    }
+}
+```
+
+#### 2. URL 替换规则
+
+* 输入：`http://user-service/api/users?role=admin`
+* 选中实例：`192.168.1.10:8080`
+* 输出：`http://192.168.1.10:8080/api/users?role=admin`
+
+> Path、Query、Header 完全保留，仅替换 `Host:Port`
+
+### 动态更新与缓存机制
+
+| 机制 | 说明 | 默认值/行为 |
+| ------ | ------ | ------------- |
+| **本地缓存** | `CachingServiceInstanceListSupplier` 缓存实例列表，避免频繁请求注册中心 | TTL `30s`，可配置 `spring.cloud.loadbalancer.cache.ttl` |
+| **变更感知** | Nacos 推送 → 更新 `ServiceInfoHolder` → `ServiceInstanceListSupplier` 触发 Flux 更新 | 下次 `choose()` 自动使用新列表 |
+| **故障处理** | 客户端 **无主动剔除** 机制，依赖 Nacos 服务端健康检查标记 `healthy=false` | 配合 `spring-retry` 或 `Resilience4j` 实现调用失败重试/熔断 |
+
+### 核心源码映射（Debug/排查指引）
+
+| 职责 | 关键类 | 包路径 |
+|------|--------|--------|
+| Nacos 实例管理 | `NacosNamingService` → `ServiceInfoHolder` | `com.alibaba.nacos.client.naming` |
+| Spring Cloud 适配 | `NacosServiceInstanceListSupplier` | `com.alibaba.cloud.nacos.discovery` |
+| 负载均衡器工厂 | `LoadBalancerClientFactory` | `org.springframework.cloud.loadbalancer.core` |
+| 默认策略 | `RoundRobinLoadBalancer` | `org.springframework.cloud.loadbalancer.core` |
+| Feign 拦截器 | `FeignBlockingLoadBalancerClient` | `org.springframework.cloud.openfeign.loadbalancer` |
+| URL 重建 | `LoadBalancerUriTools.reconstructURI()` | `org.springframework.cloud.loadbalancer.support` |
+
+### 生产环境关键注意事项
+
+1. **权重不生效**：默认轮询忽略 Nacos 实例权重。需：
+   * 引入 `spring-cloud-starter-alibaba-nacos-loadbalancer`
+   * 或自定义 `@LoadBalancerClient` 实现 `WeightedRoundRobinLoadBalancer`
+
+2. **缓存延迟导致请求失败**：实例下线后，Nacos 推送可能有 1~3s 延迟，期间可能路由到已下线节点。**必须配置重试机制**：
+
+   ```yaml
+   spring:
+     cloud:
+       loadbalancer:
+         retry:
+           enabled: true
+           max-retries: 2
+       openfeign:
+         client:
+           config:
+             default:
+               connect-timeout: 2000
+               read-timeout: 5000
+   ```
+
+3. **跨可用区路由**：若需同机房优先，需自定义 `ServiceInstanceListSupplier` 实现 `ZonePreferenceServiceInstanceListSupplier` 逻辑。
+
+4. **长连接场景不适用**：Websocket/gRPC 长连接建立后不再经过 Feign 拦截，需在连接建立层自行实现 LB（如 gRPC 内置 LB 或 Istio）。
+
+---
+
+---
+url: /blog/s3jn3cjb/index.md
+---
+# 环形链表 O(1) 解法
+## 142. 环形链表 II
+
+## 基本思路
+
+![Floyd 判圈算法](https://pic.leetcode.cn/1741414978-wPTZwJ-lc142-3-c.png "Floyd 判圈算法")
+
+快慢指针相遇，证明快指针比慢指针正好多走 $k$ 圈，说明 $2b - b = b$ 为 $c$ 的整数倍。
+
+又有慢指针在环内的走的距离为 $b - a$, $b$ 为 $c$ 的整数倍，已知再走距离 $a$，慢指针能达到 $c$ 的整数倍，即到达入环点。
+
+虽然 $a$ 的值未知，但是注意到**头结点距离入环的距离也为 $a$**，故只需要让头结点和慢指针同时走，相遇点即为入环点。
+
+## 解题代码
+
+::: code-tabs
+@tab Java
+
+```java
+public class Solution {
+    public ListNode detectCycle(ListNode head) {
+        ListNode slow = head;
+        ListNode fast = head;
+        while (fast != null && fast.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+            // 此处要先移动指针再判断，否则一开始 slow 和 fast 均为 head 会出现逻辑错误
+            if (fast == slow) {
+                while (head != slow) {
+                    head = head.next;
+                    slow = slow.next;
+                }
+                return head;
+            }
+        }
+        return null;
+    }
+}
+```
+
+:::
+
+---
+
+---
+url: /blog/wwjev5pu/index.md
+---
+# 在 Linux 中让 matplotlib 能正常显示中文的一种方式
+记录一个实测成功且较为简单的方法。
+
+## 安装 simhei.ttf 字体
+
+从 Windows 上拷贝 simhei.ttf 字体，位置：`C:/Windows/Fonts/simhei.ttf`
+然后安装到 Linux，如果是 GUI 可以直接打开 ttf 文件点击安装
+
+刷新字体：
+
+```shell
+sudo fc-cache -f -v
+```
+
+## 清除 matplotlib 字体缓存
+
+查看 matplotlib 字体缓存目录
+
+```python
+import matplotlib as plt
+plt.get_cachedir()
+```
+
+删除该目录，下次使用时就会自动刷新缓存
+
+```shell
+rm -rf /home/xxx/.cache/matplotlib
+```
+
+## 指定使用字体
+
+每次使用时在 python 中指定字体，即可正常显示中文
+
+```python
+import matplotlib.pyplot as plt
+plt.rcParams['font.sans-serif'] = ['SimHei']
+```
+
+---
+
+---
+url: /blog/yvizdwxs/index.md
+---
+# 关于二分查找区间缩小及相等时边界移动的思考
+## 循环不变量
+
+理解二分查找中的循环不变量是关键。循环不变量是在循环的每次迭代开始前都成立的逻辑条件。
+
+**关键点：循环不变量：目标值（若存在）必在 `[left, right)` 中**
+以左开右闭区间为例：
+
+* 初始 `left = 0`，`right = n`，保证所有有效索引 `0..n-1` 都在 `[0, n)` 内。
+* 循环条件 `left < right` 等价于区间非空
+* 保持：根据 `nums[mid]` 与 `target` 的比较，如果 `nums[mid] < target`，则 `mid` 及左侧都不可能是目标，`left` 应该排除 `mid`，即新区间为 `[mid + 1, right)`。此时保证了目标（若存在）仍在区间中；反之 `right` 应该排除 `mid`，即新区间为 `[left, mid)`。每次更新都在维持不变量的前提下尽可能缩小区间。
+* 终止：当 `left == right` 时，区间 `[left, right)` 内无整数索引，循环结束。
+
+## 不单独处理相等的情况
+
+允许重复元素的情况，不单独处理相等的情况，可以查找找到**左边界**或**右边界**。
+对于左闭右开区间写法：
+
+* 寻找第一个等于 target 的位置
+  * **策略**：相等时继续向左搜索，因此相等时移动**右边界**。
+  * 最终 `right` 指向第一个 `>= target` 的位置
+* 寻找最后一个等于 target 的位置（右边界）
+  * **策略**：相等时继续向右搜索，因此相等时移动**左边界**。
+  * 最终 `left` 指向最后一个 `<= target` 的位置的后一个位置，即指向第一个 `> target` 的位置
+
+> 个人理解：相等时移动哪个边界，代表从这个边界排出，此时这个边界旁边就是最后一个满足条件的，而由于开闭区间情况是否包含这个边界不同，需不需要±1修正依具体情况而定
+
+### 对比记忆
+
+| 区间类型       | 找左边界（相等时） | 找右边界（相等时） |
+| -------------- | ------------------ | ------------------ |
+| 左闭右闭 \[l,r] | `r = mid - 1`      | `l = mid + 1`      |
+| 左闭右开 \[l,r) | `r = mid`          | `l = mid + 1`      |
+| 左开右开 (l,r) | `r = mid`          | `l = mid`          |
+
+---
+
+---
+url: /blog/zh4c3f22/index.md
+---
+旧版本博客使用 Hexo + NexT 主题搭建，新版迁移至 VuePress + Plume 主题搭建。
+再次记录下 Hexo 的安装及个人初始化过程。
+
+## 部署静态网页至 GitHub
+
+1. 安装 [hexo-deployer-git](https://github.com/hexojs/hexo-deployer-git)
+
+```shell
+npm install hexo-deployer-git --save
+```
+
+2. 在 `_config.yml` 中配置：
+
+```yml
+deploy:
+  type: git
+  repo: <repository url> # https://bitbucket.org/JohnSmith/johnsmith.bitbucket.io
+  branch: [branch]
+  message: [message]
+```
+
+3. 使用 `hexo clean && hexo deploy` 部署至 GitHub
+
+## 配置 NexT 主题
+
+NexT 主题仓库 https://github.com/theme-next/hexo-theme-next
+
+### 安装主题
+
+直接将仓库克隆至 `themes/next` 即可：
+
+```shell
+git clone https://github.com/theme-next/hexo-theme-next themes/next
+```
+
+随后在  `_config.yml` 中启用主题：
+
+```yaml
+theme: next
+```
+
+### 更新主题
+
+直接拉取最新仓库即可更新主题：
+
+```shell
+cd themes/next
+git pull
+```
+
+## 个性化设置
+
+### 网站描述
+
+在 `_config.yml` 中配置：
+
+```yaml
+# Site
+title: 未知领域
+subtitle: ''
+description: 摸了
+keywords:
+author: Danny Lee
+language: zh-CN
+timezone: Asia/Shanghai
+```
+
+### 建站时间
+
+在主题配置文件 `themes/next/_config.yml` 中配置：
+
+```yaml
+footer:
+  # Specify the date when the site was setup. If not defined, current year will be used.
+  since: 2023   #建站时间
+```
+
+### 显示文章字数和阅读时长
+
+安装插件：
+
+```shell
+npm install hexo-symbols-count-time
+```
+
+在 `_config.yml` 中添加：
+
+```yaml
+symbols_count_time:
+  symbols: true
+  time: true
+  total_symbols: true
+  total_time: true
+  exclude_codeblock: false
+  awl: 4
+  wpm: 275
+  suffix: "mins."
+```
+
+在主题配置文件 `themes/next/_config.yml` 中配置：
+
+```yaml
+# Post wordcount display settings
+# Dependencies: https://github.com/theme-next/hexo-symbols-count-time
+symbols_count_time:
+ separated_meta: true
+ item_text_post: true
+ item_text_total: true
+```
+
+### canvas 背景彩带
+
+参见 https://github.com/theme-next/theme-next-canvas-ribbon
+
+### mathjax 公式
+
+在主题配置文件 `themes/next/_config.yml` 中配置：
+
+```yaml
+mathjax:
+    enable: true
+    mhchem: false  # 用来写化学方程式
+```
+
+### 透明背景
+
+站点根目录创建文件 `/source/_data/styles.styl` 并填入如下配置：
+
+```stylus
+:root {
+  --content-bg-color:rgba(255, 255, 255, 0.8);
+}
+```
+
+并在主题配置文件 `themes/next/_config.yml` 中配置：
+
+```yaml
+# Define custom file paths.
+# Create your custom files in site directory `source/_data` and uncomment needed files below.
+custom_file_path:
+  style: source/_data/styles.styl
+```
+
+### 圆角边框
+
+站点根目录创建文件 `/source/_data/variables.styl` 并填入如下配置：
+
+```stylus
+$border-radius-inner     = 10px;
+$border-radius           = 10px;
+```
+
+同时在 `/source/_data/styles.styl` 添加如下配置：
+
+```stylus
+.sidebar {
+  border-radius: 10px;
+}
+```
+
+并在主题配置文件 `themes/next/_config.yml` 中配置：
+
+```yaml
+# Define custom file paths.
+# Create your custom files in site directory `source/_data` and uncomment needed files below.
+custom_file_path:
+  variable: source/_data/variables.styl
+  style: source/_data/styles.styl
+```
+
+### 边框阴影
+
+将 `themes/next/source/css/_common/components/post/post.styl` 的 `.use-motion` 中的
+
+```stylus
+  if (hexo-config('motion.transition.post_block')) {
+    .post-block, .pagination, .comments {
+      opacity: 0;
+    }
+  }
+```
+
+改为:
+
+```stylus
+  if (hexo-config('motion.transition.post_block')) {
+    .post-block {
+      opacity: 0;
+      margin-top: 60px;
+      margin-bottom: 60px;
+      padding: 25px;
+      background:rgba(255,255,255,0.9) none repeat scroll !important;
+      -webkit-box-shadow: 0 0 5px rgba(156, 156, 156, 0.5);
+      -moz-box-shadow: 0 0 5px rgba(104, 104, 104, 0.5);
+    }
+    .pagination, .comments{
+      opacity: 0;
+    }
+  }
+```
+
+### 本地搜索
+
+安装插件：
+
+```shell
+npm install hexo-generator-searchdb
+```
+
+并在主题配置文件 `themes/next/_config.yml` 中配置：
+
+```yaml
+# Local Search
+# Dependencies: https://github.com/theme-next/hexo-generator-searchdb
+local_search:
+  enable: true
+  # If auto, trigger search by changing input.
+  # If manual, trigger search by pressing enter key or search button.
+  trigger: auto
+  # Show top n results per article, show all results by setting to -1
+  top_n_per_article: 1
+  # Unescape html strings to the readable one.
+  unescape: false
+  # Preload the search data when the page loads.
+  preload: false
+```
+
+### 配置代码块
+
+根据注释提示以及实际需求在主题配置文件 `themes/next/_config.yml` 中配置：
+
+```yaml
+codeblock:
+  # Code Highlight theme
+  # Available values: normal | night | night eighties | night blue | night bright | solarized | solarized dark | galactic
+  # See: https://github.com/chriskempson/tomorrow-theme
+  highlight_theme: night eighties 
+  # Add copy button on codeblock
+  copy_button:
+    enable: true
+    # Show text copy result.
+    show_result: true
+    # Available values: default | flat | mac
+    style: mac
+```
+
+### 配置文章置顶
+
+Hexo 本身并没有内置文章置顶功能，但有一个默认的对文章排序的组件 `hexo-generator-index`，也就是在站点配置文件内的 `index_generator` 选项，置顶功能本质上是一个排序组件，故需要替换依赖项：
+
+```shell
+npm uninstall hexo-generator-index --save
+npm install hexo-generator-index-pin-top --save
+```
+
+插件安装完之后，只需要在文章头部信息栏内设置 `top` 属性即可：
+
+```markdown
+---
+title: 写在最前面
+hide: false
+top: true
+---
+```
+
+为了能有个比较突出的标志，可以在 `themes/next/layout/_macro/post.swig` 文件中找到 `<div class="post-meta">` 并添加代码：
+
+```html
+{% if post.top %}
+<span class="post-meta-item-icon">
+    <i class="fa fa-thumbtack" style="color: #165C91"></i>
+</span>
+<font color=#165C91 ><b>置顶</b></font>
+<span class="post-meta-divider">|</span>
+{% endif %}
+```
+
+### 配置超链接颜色
+
+在 `themes/next/source/css/_common/components/post/post.styl` 最后添加：
+
+```stylus
+.post-body p a{
+  color: #0593d3;
+  border-bottom: none;
+  &:hover {
+    color: #0477ab;
+    text-decoration: underline;
+  }
+}
+```
+
+---
+
+---
+url: /blog/zv41eh88/index.md
+---
+# 在 Ubuntu 上安装 CUDA 及 cuDNN
+一种较快且稳定安装 CUDA 及 cuDNN 的方法。
+
+## 安装 nVidia 显卡驱动
+
+首先需要确保安装了 nVidia 的驱动，安装方法在此不赘述。
+如果安装了可以在终端中查看显卡信息，包括支持的 CUDA 最大版本
+
+```shell
+nvidia-smi
+```
+
+## 安装 CUDA
+
+在 nVidia 官网选择需要下载的版本，为了兼容 PyTorch 我选择了11.8：
+<https://developer.nvidia.com/cuda-11-8-0-download-archive>
+Ubuntu 版官方给出了三种安装方式：deb(local), deb(network), runfile(local)
+在此推荐使用 runfile，因为 deb 会自动覆盖安装显卡驱动，而 runfile 在安装过程中可以选择是否安装显卡驱动。
+**CUDA 安装包自带的显卡驱动不一定能完美适配你的显卡，故可能带来一些问题，故建议如果当前安装的驱动没明显问题不随意更换驱动**
+**在 Ubuntu 的附加驱动上安装显卡驱动可能会导致安装的 CUDA 失效(?)，在安装完CUDA后也不建议随意更换驱动**
+
+```shell
+wget https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run
+sudo sh cuda_11.8.0_520.61.05_linux.run
+```
+
+## 检测 CUDA 安装
+
+终端中输入
+
+```shell
+nvcc -V
+```
+
+如果正常显示 CUDA 版本等信息则说明安装成功
+
+如果不显示，也可能只是环境变量未配置，根据 CUDA 的安装目录，在`~/.bashrc`文件中添加环境变量：
+
+```shell
+export PATH="/usr/local/cuda-11.8/bin:$PATH"
+export LD_LIBRARY_PATH="/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH"
+```
+
+使用`source ~/.bashrc`刷新环境变量，或者重启终端后再尝试即可
+
+## 安装 cuDNN
+
+在如下链接可以下载历史版本的 cuDNN，需要登录 nVidia账号：
+<https://developer.nvidia.com/rdp/cudnn-archive>
+安装方法可以参考官方的文档：
+<https://docs.nvidia.com/deeplearning/cudnn/install-guide/index.html>
+
+1.下载所需版本的 Deb 文件
+
+2.使用 dpkg 安装所得 Deb文件
+
+```shell
+sudo dpkg -i cudnn-local-repo-${distro}-8.x.x.x_1.0-1_amd64.deb
+```
+
+3.前往/var/cudnn-local-repo-${distro}-8.x.x.x/目录，安装相关库文件
+
+```shell
+sudo dpkg -i libcudnn8_8.x.x.x-1+cudaX.Y_amd64.deb 
+sudo dpkg -i libcudnn8-dev_8.x.x.x-1+cudaX.Y_amd64.deb 
+sudo dpkg -i libcudnn8-samples_8.x.x.x-1+cudaX.Y_amd64.deb   
+```
+
+## 测试 cuDNN 安装
+
+```shell
+cp -r /usr/src/cudnn_samples_v8/ $HOME
+cd  $HOME/cudnn_samples_v8/mnistCUDNN
+make clean && make
+./mnistCUDNN
+```
+
+在 make 时可能会存在库缺失的报错，这不一定是 cuDNN 的问题。
+
+例如我在验证时报错：
+
+```text
+test.c:1:10: fatal error: FreeImage.h: 没有那个文件或目录
+    1 | #include "FreeImage.h"
+      |          ^~~~~~~~~~~~~
+compilation terminated.
+>>> WARNING - FreeImage is not set up correctly. Please ensure FreeImage is set up correctly. <<<
+```
+
+解决方案是安装 FreeImage 库就行
+
+```shell
+sudo apt-get update
+sudo apt-get install libfreeimage-dev
+```
+
+如果成果安装 cuDNN，最后运行 mnistCUDNN 时最后一行输出
+
+```text
+Test passed!
+```
+
+---
+
+---
+url: /blog/zvshucb7/index.md
+---
+# Java 线程池的实践
+## 线程池在业务中的实践
+
+### 业务背景
+
+在当今的互联网业界，为了最大程度利用CPU的多核性能，并行运算的能力是不可或缺的。通过线程池管理线程获取并发性是一个非常基础的操作，让我们来看两个典型的使用线程池获取并发性的场景。
+
+#### 场景1：快速响应用户请求
+
+**描述**：用户发起的实时请求，服务追求响应时间。比如说用户要查看一个商品的信息，那么我们需要将商品维度的一系列信息如商品的价格、优惠、库存、图片等等聚合起来，展示给用户。
+
+**分析**：从用户体验角度看，这个结果响应的越快越好。而面向用户的功能聚合通常非常复杂，伴随着调用与调用之间的级联、多级级联等情况，业务开发同学往往会选择使用线程池这种简单的方式，将调用封装成任务并行的执行，缩短总体响应时间。另外，使用线程池也是有考量的，这种场景最重要的就是获取最大的响应速度去满足用户，所以应该不设置队列去缓冲并发任务，调高 `corePoolSize` 和 `maxPoolSize` 去尽可能创造多的线程快速执行任务。
+
+![并行执行任务提升任务响应速度](https://p0.meituan.net/travelcube/e9a363c8577f211577e4962e9110cb0226733.png)
+
+#### 场景2：快速处理批量任务
+
+**描述**：离线的大量计算任务，需要快速执行。比如说，统计某个报表，需要计算出全国各个门店中有哪些商品有某种属性，用于后续营销策略的分析，那么我们需要查询全国所有门店中的所有商品，并且记录具有某属性的商品，然后快速生成报表。
+
+**分析**：这种场景需要执行大量的任务，我们也会希望任务执行的越快越好。这种情况下，也应该使用多线程策略，并行计算。但与响应速度优先的场景区别在于，这类场景任务量巨大，并不需要瞬时的完成，而是关注如何使用有限的资源，尽可能在单位时间内处理更多的任务，也就是吞吐量优先的问题。所以应该设置队列去缓冲并发任务，调整合适的 `corePoolSize` 去设置处理任务的线程数。在这里，设置的线程数过多可能还会引发线程上下文切换频繁的问题，也会降低处理任务的速度，降低吞吐量。
+
+### 实际问题及方案思考
+
+线程池使用面临的核心的问题在于：**线程池的参数并不好配置**。
+
+* 一方面线程池的运行机制不是很好理解，配置合理需要强依赖开发人员的个人经验和知识；
+* 另一方面，线程池执行的情况和任务类型相关性较大，IO密集型和CPU密集型的任务运行起来的情况差异非常大，这导致业界并没有一些成熟的经验策略帮助开发人员参考。
+
+关于线程池配置不合理引发的故障，公司内部有较多记录，下面举一些例子：
+
+**Case1**：2018 年 XX 页面展示接口大量调用降级
+
+**事故描述**：XX页面展示接口产生大量调用降级，数量级在几十到上百。
+
+**事故原因**：该服务展示接口内部逻辑使用线程池做并行计算，由于没有预估好调用的流量，导致最大核心数设置偏小，大量抛出 `RejectedExecutionException`，触发接口降级条件，示意图如下：
+
+![线程数核心设置过小引发RejectExecutionException](https://p0.meituan.net/travelcube/1df932840b31f41931bb69e16be2932844240.png)
+
+**Case2**：2018 年 XX 业务服务不可用S2级故障
+
+**事故描述**：XX业务提供的服务执行时间过长，作为上游服务整体超时，大量下游服务调用失败。
+
+**事故原因**：该服务处理请求内部逻辑使用线程池做资源隔离，由于队列设置过长，最大线程数设置失效，导致请求数量增加时，大量任务堆积在队列中，任务执行时间过长，最终导致下游服务的大量调用超时失败。示意图如下：
+
+![线程池队列长度设置过长、corePoolSize设置过小导致任务执行速度低](https://p1.meituan.net/travelcube/668e3c90f4b918bfcead2f4280091e9757284.png)
+
+业务中要使用线程池，而使用不当又会导致故障，那么我们怎样才能更好地使用线程池呢？针对这个问题，我们下面延展几个方向：
+
+#### 能否不用线程池?
+
+回到最初的问题，业务使用线程池是为了获取并发性，对于获取并发性，是否可以有什么其他的方案呢替代？我们尝试进行了一些其他方案的调研：
+
+| 名称              | 描述                                                         | 优势                                                         | 劣势                                                   |
+| ----------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------ |
+| **Disruptor框架** | 线程池内部是通过一个工作队列去维护任务的执行的，它有一个根本性的缺陷：连续争用问题。也就是多个线程在申请任务时，为了合理地分配任务要付出额外资源，对比快速的任务执行来说，这部分申请的损耗是巨大的。高性能进程间消息库 LMAX 使用了一个叫作环形缓冲的数据结构，用这种这个特殊的数据结构来替代队列，将会避免申请任务时出现的连续争用状况。 | • 避免连续争用，性能更佳                                     | • 缺乏线程管理的能力，使用场景较少                     |
+| **Actor框架**     | Actor 模型通过维护多个 Actor 去处理并发的任务，它放弃了直接使用线程去获取并发性，而是自己定义了一系列系统组件应该如何动作和交互的通用规则，不需要开发者直接使用线程。通过在原生的线程或协程的级别上做了更高层次的封装，只需要开发者关心每个 Actor 的逻辑即可实现并发操作。由于避免了直接使用锁，很大程度解决了传统并发编程模式下大量依赖悲观锁导致的资源竞争情况。 | • 无锁策略，性能更佳• 避免直接使用线程，安全性更高       | • 在Java中缺乏成熟的应用• 内部复杂，难以排查和调试 |
+| **协程框架**      | 协程是一种用户态的轻量级线程，其拥有自己的寄存器上下文和栈，当调度切换时，将寄存器上下文和栈保存到其他地方，在切回来的时候，恢复先前保存的寄存器上下文和栈。这种切换上下文的方式小于线程的开销。在瓶颈侧重IO的情况下，使用协程获得并发性要优于使用线程。 | • 侧重IO情况时，性能更佳• 与多线程策略无冲突，可结合使用 | • 在Java中缺乏成熟的应用                               |
+
+综合考虑，这些新的方案都能在某种情况下提升并行任务的性能，然而本次重点解决的问题是如何更简易、更安全地获得的并发性。另外，Actor 模型的应用实际上甚少，只在 Scala 中使用广泛，协程框架在 Java 中维护的也不成熟。这三者现阶段都不是足够的易用，也并不能解决业务上现阶段的问题。
+
+#### 追求参数设置合理性？
+
+有没有一种计算公式，能够很简易地计算出某种场景中的线程池应该是什么参数呢？
+
+带着这样的疑问，我们调研了业界的一些线程池参数配置方案：
+
+![img](https://p0.meituan.net/travelcube/23a44974ff68a08261fb675242b83648181953.png)
+
+调研了以上业界方案后，我们并没有得出通用的线程池计算方式。并发任务的执行情况和任务类型相关，IO密集型和CPU密集型的任务运行起来的情况差异非常大，但这种占比是较难合理预估的，这导致很难有一个简单有效的通用公式帮我们直接计算出结果。
+
+#### 线程池参数动态化？
+
+尽管经过谨慎的评估，仍然不能够保证一次计算出来合适的参数，那么我们是否可以将修改线程池参数的成本降下来，这样至少可以发生故障的时候可以快速调整从而缩短故障恢复的时间呢？
+
+基于这个思考，我们是否可以将线程池的参数从代码中迁移到分布式配置中心上，实现线程池参数可动态配置和即时生效，线程池参数动态化前后的参数修改流程对比如下：
+
+![动态修改线程池参数新旧流程对比](https://p0.meituan.net/travelcube/c6caa5be64f39758ada0593b995d65fd25982.png)
+
+基于以上三个方向对比，我们可以看出参数动态化方向简单有效。
+
+### 动态化线程池
+
+#### 整体设计
+
+动态化线程池的核心设计包括以下三个方面：
+
+1. **简化线程池配置**：线程池构造参数有8个，但是最核心的是3个：`corePoolSize`、`maximumPoolSize`，`workQueue`，它们最大程度地决定了线程池的任务分配和线程分配策略。
+
+   考虑到在实际应用中我们获取并发性的场景主要是两种：
+
+   * **并行执行子任务**，提高响应速度。这种情况下，应该使用同步队列，没有什么任务应该被缓存下来，而是应该立即执行。
+   * **并行执行大批次任务**，提升吞吐量。这种情况下，应该使用有界队列，使用队列去缓冲大批量的任务，队列容量必须声明，防止任务无限制堆积。
+
+   所以线程池只需要提供这三个关键参数的配置，并且提供两种队列的选择，就可以满足绝大多数的业务需求，Less is More。
+
+2. **参数可动态修改**：为了解决参数不好配，修改参数成本高等问题。在 Java 线程池留有高扩展性的基础上，封装线程池，允许线程池监听同步外部的消息，根据消息进行修改配置。将线程池的配置放置在平台侧，允许简单的查看、修改线程池配置。
+
+3. **增加线程池监控**：在线程池执行任务的生命周期添加监控能力，帮助了解线程池状态。
+
+![动态化线程池整体设计](https://p1.meituan.net/travelcube/4d5c410ad23782350cc9f980787151fd54144.png)
+
+#### 功能架构
+
+动态化线程池提供如下功能：
+
+* **动态调参**：支持线程池参数动态调整、界面化操作；包括修改线程池核心大小、最大核心大小、队列长度等；参数修改后及时生效。
+* **任务监控**：支持应用粒度、线程池粒度、任务粒度的 Transaction 监控；可以看到线程池的任务执行情况、最大任务执行时间、平均任务执行时间、95/99线等。
+* **负载告警**：线程池队列任务积压到一定值的时候会通过软件告知应用开发负责人；当线程池负载数达到一定阈值的时候会通过软件告知应用开发负责人。
+* **操作监控**：创建/修改和删除线程池都会通知到应用的开发负责人。
+* **操作日志**：可以查看线程池参数的修改记录，谁在什么时候修改了线程池参数、修改前的参数值是什么。
+* **权限校验**：只有应用开发负责人才能够修改应用的线程池参数。
+
+![动态化线程池功能架构](https://p0.meituan.net/travelcube/6c0091e92e90f50f89fd83f3b9eb5472135718.png)
+
+#### 参数动态化
+
+JDK 允许线程池使用方通过 `ThreadPoolExecutor` 的实例来动态设置线程池的核心策略，JDK 原生线程池 `ThreadPoolExecutor` 提供了如下几个 setter 方法，如下图所示：
+
+![JDK 线程池参数设置接口](https://p1.meituan.net/travelcube/efd32f1211e9cf0a3ca9d35b0dc5de8588353.png)
+
+以 `setCorePoolSize` 为方法例，在运行期线程池使用方调用此方法设置 `corePoolSize` 之后，线程池会直接覆盖原来的 `corePoolSize` 值，并且基于当前值和原始值的比较结果采取不同的处理策略。
+
+* 对于当前值小于当前工作线程数的情况，说明有多余的 `worker` 线程，此时会向当前 idle 的 `worker` 线程发起中断请求以实现回收，多余的 `worker` 在下次 idle 的时候也会被回收；
+* 对于当前值大于原始值且当前队列中有待执行任务，则线程池会创建新的 `worker` 线程来执行队列任务
+
+`setCorePoolSize` 具体流程如下：
+
+![setCorePoolSize方法执行流程](https://p0.meituan.net/travelcube/9379fe1666818237f842138812bf63bd85645.png)
+
+```java title="ThreadPoolExecutor.java"
+/**
+ * 设置核心线程数。该值会覆盖构造函数中设置的任何值。如果新值小于当前值，
+ * 多余的核心线程将在它们下次变为空闲状态时被终止。如果新值大于当前值，
+ * 并且需要时，将启动新的线程来执行队列中任何已排队的任务。
+ *
+ * @param corePoolSize 新的核心线程数
+ * @throws IllegalArgumentException 如果 {@code corePoolSize < 0}
+ *         或者 {@code corePoolSize} 大于 {@linkplain
+ *         #getMaximumPoolSize() 最大线程池大小}
+ * @see #getCorePoolSize
+ */
+public void setCorePoolSize(int corePoolSize) {
+    if (corePoolSize < 0 || maximumPoolSize < corePoolSize)
+        throw new IllegalArgumentException();
+    int delta = corePoolSize - this.corePoolSize;
+    this.corePoolSize = corePoolSize;
+    if (workerCountOf(ctl.get()) > corePoolSize)
+        interruptIdleWorkers();
+    else if (delta > 0) {
+        // We don't really know how many new threads are "needed".
+        // As a heuristic, prestart enough new workers (up to new
+        // core size) to handle the current number of tasks in
+        // queue, but stop if queue becomes empty while doing so.
+        int k = Math.min(delta, workQueue.size());
+        while (k-- > 0 && addWorker(null, true)) {
+            if (workQueue.isEmpty())
+                break;
+        }
+    }
+}
+```
+
+#### 线程池监控
+
+除了参数动态化之外，为了更好地使用线程池，我们需要对线程池的运行状况有感知，比如当前线程池的负载是怎么样的？分配的资源够不够用？任务的执行情况是怎么样的？是长任务还是短任务？
+
+基于对这些问题的思考，动态化线程池提供了多个维度的监控和告警能力，包括：线程池活跃度、任务的执行 Transaction（频率、耗时）、Reject 异常、线程池内部统计信息等等，既能帮助用户从多个维度分析线程池的使用情况，又能在出现问题第一时间通知到用户，从而避免故障或加速故障恢复。
+
+##### 负载监控和告警
+
+线程池负载关注的核心问题是：基于当前线程池参数分配的资源够不够。对于这个问题，我们可以从事前和事中两个角度来看。
+
+* 事前，线程池定义了“活跃度”这个概念，来让用户在发生 Reject 异常之前能够感知线程池负载问题，线程池活跃度计算公式为：`activeCount / maximumPoolSize`。这个公式代表当活跃线程数趋向于 `maximumPoolSize` 的时候，代表线程负载趋高。
+* 事中，也可以从两方面来看线程池的过载判定条件，一个是发生了 Reject 异常，一个是队列中有等待任务（支持定制阈值）。
+
+以上两种情况发生了都会触发告警，告警信息会通过软件推送给服务所关联的负责人。
+
+##### 任务级精细化监控
+
+在传统的线程池应用场景中，线程池中的任务执行情况对于用户来说是透明的。比如在一个具体的业务场景中，业务开发申请了一个线程池同时用于执行两种任务，一个是发消息任务、一个是发短信任务，这两类任务实际执行的频率和时长对于用户来说没有一个直观的感受，很可能这两类任务不适合共享一个线程池，但是由于用户无法感知，因此也无从优化。
+
+动态化线程池内部实现了任务级别的埋点，且允许为不同的业务任务指定具有业务含义的名称，线程池内部基于这个名称做 Transaction 打点，基于这个功能，用户可以看到线程池内部任务级别的执行情况，且区分业务，任务监控示意图如下图所示：
+
+![线程池任务执行监控](https://p1.meituan.net/travelcube/cd0b9445c3c93a866201b7cfb24d2ce7214776.png)
+
+##### 运行时状态实时查看
+
+用户基于 JDK 原生线程池 ThreadPoolExecutor 提供的几个 getter 方法，可以读取到当前线程池的运行状态以及参数，如下图所示：
+
+![线程池实时运行情况](https://p0.meituan.net/travelcube/aba8d9c09e6f054c7061ddd720a04a26147951.png)
+
+动态化线程池基于这几个接口封装了运行时状态实时查看的功能，用户基于这个功能可以了解线程池的实时状态，比如当前有多少个工作线程，执行了多少个任务，队列中等待的任务数等等。效果如下图所示：
+
+### 实践总结
+
+面对业务中使用线程池遇到的实际问题，我们曾回到支持并发性问题本身来思考有没有取代线程池的方案，也曾尝试着去追求线程池参数设置的合理性，但面对业界方案具体落地的复杂性、可维护性以及真实运行环境的不确定性，我们在前两个方向上可谓“举步维艰”。
+
+最终，我们回到线程池参数动态化方向上探索，得出一个且可以解决业务问题的方案，虽然本质上还是没有逃离使用线程池的范畴，但是在成本和收益之间，算是取得了一个很好的平衡。
+
+成本在于实现动态化以及监控成本不高，收益在于：在不颠覆原有线程池使用方式的基础之上，从降低线程池参数修改的成本以及多维度监控这两个方面降低了故障发生的概率。
+
+---
+
+---
+url: /blog/zw7wkfdr/index.md
+---
+# 在 WSL2 中安装 MySQL 并通过 Windows 本地连接
+在 WSL2 上安装的 MySQL 无法在 Windows 上直接由 127.0.0.1 访问，在此记录配置 MySQL 远程连接使得 Windows 的 SQL 管理软件可以直接管理 WSL2 里的 MySQL的方法。
+
+首先开启 WSL2 的 systemd：
+
+```shell
+vim /etc/wsl.conf
+```
+
+然后在其中添加如下内容：
+
+```Ini
+[boot]
+systemd=true
+```
+
+上述也可以用如下指令实现：
+
+```shell
+echo -e "[boot]\nsystemd=true" | sudo tee -a /etc/wsl.conf
+```
+
+退出 WSL2，使用 `wsl --shutdown` 关闭 WSL2
+
+再次启动 WSL2，安装 MySQL：
+
+```shell
+sudo apt install mysql-server
+```
+
+修改 `/etc/mysql/mysql.conf.d/mysqld.cnf` 中的 `bind-address` 为 `0.0.0.0`，使得 MySQL 允许外部访问
+
+重启 MySQL，并初始化 MySQL：
+
+```shell
+sudo /etc/init.d/mysql restart
+sudo mysql_secure_installation
+```
+
+进入MySQL，开放外部权限：
+
+```shell
+sudo mysql -u root -p
+```
+
+```sql
+use mysql;
+update user set host="%" where user="root";
+```
+
+最后更改 iptable 防火墙规则并保存：
+
+```shell
+sudo iptables -A INPUT -p tcp -m tcp --dport 3306 -j ACCEPT
+sudo iptables-save -c
+```
+
+至此便可以让 Windows 通过本地 127.0.0.1:3306 访问 WSL2 的 MySQL Server
+
+---
+
+---
+url: /demo/index.md
+---
+# Demo
+* [bar](./bar.md)
+* [foo](./foo.md)
+
+---
+
+---
+url: /demo/8pw82has/index.md
+---
+# bar
+[foo](./foo.md)
+
+---
+
+---
+url: /demo/w5n4gh4t/index.md
+---
+# foo
+[bar](./bar.md)
+
+---
+
+---
+url: /skill/index.md
+---
+# 概述
+> 一种简单、开放的格式，用于为 AI Agent 赋予新的能力和专业知识。
+
+Agent Skills 是包含说明、脚本和资源的文件夹，Agent 可以发现并使用它们，从而更准确、更高效地完成任务。
+
+## 为什么需要 Agent Skills？
+
+Agent 的能力日益强大，但通常缺乏可靠执行实际工作所需的上下文。Skills 通过为 Agent 提供程序性知识以及可按需加载的公司、团队和用户特定上下文来解决这个问题。拥有 skills 访问权限的 Agent 可以根据当前任务扩展自身能力。
+
+**对于技能作者**：一次构建能力，跨多个 Agent 产品部署。
+
+**对于兼容的 Agent**：支持 skills 让最终用户能够开箱即用地赋予 Agent 新能力。
+
+**对于团队和企业**：将组织知识封装到可移植、可版本控制的包中。
+
+## Agent Skills 能实现什么？
+
+* **领域专业知识**：将专业知识打包成可复用的说明，从法律审查流程到数据分析管道。
+* **新能力**：赋予 Agent 新能力（例如创建演示文稿、构建 MCP 服务器、分析数据集）。
+* **可重复的工作流**：将多步骤任务转化为一致且可审计的工作流。
+* **互操作性**：在不同兼容 skills 的 Agent 产品之间复用同一个 skill。
+
+## 采用情况
+
+Agent Skills 已获得领先 AI 开发工具的支持。（包括 Claude Code、Cursor、GitHub Copilot、VS Code 等数十款产品）
+
+## 开放发展
+
+Agent Skills 格式最初由 [Anthropic](https://www.anthropic.com/) 开发，作为开放标准发布，已被越来越多的 Agent 产品采用。该标准欢迎更广泛生态系统的贡献。
+
+欢迎加入 [GitHub](https://github.com/agentskills/agentskills) 或 [Discord](https://discord.gg/MKPE9g8aUy) 上的讨论！
+
+## 快速入门
+
+* **什么是 skills？** — 了解 skills、工作原理及其重要性
+* **规范** — `SKILL.md` 文件的完整格式规范
+* **添加 skills 支持** — 为您的 Agent 或工具添加 skills 支持
+* **示例 skills** — 在 GitHub 上浏览示例 skills
+* **参考库** — 验证 skills 并生成提示 XML
+
+---
+
+---
+url: /skill/7cpngcxq/index.md
+---
+> 如何编写范围明确且与任务匹配的技能
+
+## 从真实专业知识开始
+
+创建技能时的一个常见陷阱是要求 LLM 生成技能而不提供特定领域的上下文——仅依赖 LLM 的一般训练知识。结果往往是模糊、通用的流程（"适当处理错误"、"遵循身份验证的最佳实践"），而不是使技能有价值的特定 API 模式、边缘情况和项目约定。
+
+有效的技能建立在真实专业知识的基础上。关键在于将特定领域的上下文注入创建过程。
+
+### 从实际操作任务中提取
+
+与智能体对话完成一个真实任务，提供上下文、纠正和偏好。然后将可重用的模式提取为技能。关注：
+
+* **有效的步骤** —— 导致成功的操作序列
+* **你做的纠正** —— 你引导智能体方法的地方（例如"使用库 X 而不是 Y"、"检查边缘情况 Z"）
+* **输入/输出格式** —— 数据输入和输出的样子
+* **你提供的上下文** —— 智能体尚不知道的项目特定事实、约定或约束
+
+### 从现有项目产物中综合
+
+当你拥有大量现有知识时，可以将其输入 LLM 并要求其综合一个技能。从团队实际的事故报告和运行手册中综合的数据管道技能，将优于从通用的"数据工程最佳实践"文章中综合的技能，因为它捕获了*你的*模式、故障模式和恢复流程。关键在于项目特定的材料，而不是通用参考。
+
+良好的源材料包括：
+
+* 内部文档、运行手册和风格指南
+* API 规范、模式和配置文件
+* 代码审查评论和问题跟踪器（捕获 recurring 问题和 reviewer 期望）
+* 版本控制历史，特别是补丁和修复（通过实际更改揭示模式）
+* 真实世界的故障案例及其解决方案
+
+## 通过实际执行来改进
+
+技能的初稿通常需要改进。在真实任务上运行技能，然后将结果——不仅仅是失败的情况——反馈到创建过程中。问：什么触发了误报？遗漏了什么？可以删减什么？
+
+即使是单次执行-然后-修订的过程也能显著提高质量，复杂领域通常需要多次迭代。
+
+::: tip
+阅读智能体的执行追踪，而不仅仅是最终输出。如果智能体在无成效的步骤上浪费时间，常见原因包括：指令太模糊（智能体在找到有效方法前尝试多种方法）、指令不适用于当前任务（智能体仍然遵循）、或者呈现了太多选项而没有明确的默认值。
+:::
+
+对于更结构化的迭代方法，包括测试用例、断言和评分，请参阅[评估技能输出质量](/skill-creation/evaluating-skills)。
+
+## 明智地使用上下文
+
+一旦技能被激活，其完整的 `SKILL.md` 内容会连同对话历史、系统上下文和其他活动技能一起加载到智能体的上下文窗口中。技能中的每个 token 都与窗口中的其他所有内容竞争智能体的注意力。
+
+### 添加智能体缺少的，省略它已知的
+
+专注于智能体*没有*你的技能就*不会*知道的内容：项目特定约定、领域特定流程、非显而易见的边缘情况以及要使用的特定工具或 API。你不需要解释 PDF 是什么、HTTP 如何工作或数据库迁移做什么。
+
+````markdown
+<!-- 太冗长 —— 智能体已经知道 PDF 是什么 -->
+## 提取 PDF 文本
+
+PDF（便携式文档格式）文件是一种常见的文件格式，包含
+文本、图像和其他内容。要从 PDF 提取文本，你需要
+使用一个库。推荐使用 pdfplumber，因为它能很好地处理大多数情况。
+
+<!-- 更好 —— 直接进入智能体自己不会知道的内容 -->
+## 提取 PDF 文本
+
+使用 pdfplumber 进行文本提取。对于扫描文档，回退到
+使用 pdf2image 和 pytesseract。
+
+```python
+import pdfplumber
+
+with pdfplumber.open("file.pdf") as pdf:
+    text = pdf.pages[0].extract_text()
+```
+````
+
+问自己关于每部分内容："没有这个指令，智能体会在这方面出错吗？"如果答案是否定的，就删掉。如果不确定，就测试一下。如果智能体在没有该技能的情况下已经能很好地处理整个任务，那么这个技能可能没有增加价值。参见[评估技能输出质量](/skill-creation/evaluating-skills)了解如何系统测试。
+
+### 设计连贯的单元
+
+决定一个技能应该涵盖什么就像决定一个函数应该做什么：你想要它封装一个连贯的工作单元，能够与其他技能良好组合。范围过窄的技能会迫使单个任务加载多个技能，带来开销和指令冲突。范围过宽的技能则难以精确激活。一个用于查询数据库并格式化结果的技能可能是一个连贯的单元，而一个还涵盖数据库管理的技能可能试图做得太多。
+
+### 追求适度的细节
+
+过于全面的技能可能弊大于利——智能体难以提取相关内容，并可能因为不适用于当前任务的指令而走上无成效的路径。简洁、逐步的指导加上一个工作示例往往比详尽的文档更有效。当你发现自己要覆盖每个边缘情况时，考虑一下大多数情况是否更适合由智能体自己的判断来处理。
+
+### 用渐进式披露构建大型技能
+
+[规范](/specification#progressive-disclosure)建议将 `SKILL.md` 保持在 500 行和 5,000 tokens 以内——这只是智能体每次运行所需的核心指令。当一个技能确实需要更多内容时，将详细的参考资料移到 `references/` 或类似目录中的单独文件。
+
+关键在于告诉智能体*何时*加载每个文件。"如果 API 返回非 200 状态码，读取 `references/api-errors.md`"比通用的"详见 references/"更有用。这让智能体可以按需加载上下文，而不是预先加载，这正是[渐进式披露](/what-are-skills#how-skills-work)的设计目的。
+
+## 校准控制力度
+
+并非技能的每个部分都需要相同的指令严格程度。将指令的特定性与任务的脆弱性相匹配。
+
+### 使特定性与脆弱性匹配
+
+**给智能体自由**，当多种方法都有效且任务允许变化时。对于灵活的指令，解释*原因*可能比僵化的指令更有效——理解指令背后目的的智能体能做出更好的上下文相关决策。一个代码审查技能可以描述要查找什么，而不指定确切的步骤：
+
+```markdown
+## 代码审查流程
+
+1. 检查所有数据库查询是否有 SQL 注入（使用参数化查询）
+2. 验证每个端点的身份验证检查
+3. 查找并发代码路径中的竞态条件
+4. 确认错误消息不泄露内部细节
+```
+
+**使用严格指令**，当操作脆弱、一致性重要或必须遵循特定顺序时：
+
+````markdown
+## 数据库迁移
+
+精确运行此序列：
+
+```bash
+python scripts/migrate.py --verify --backup
+```
+
+不要修改命令或添加额外的标志。
+````
+
+大多数技能是混合的。独立校准每个部分。
+
+### 提供默认值，而不是菜单
+
+当多种工具或方法都可能有效时，选择一个默认值并简要提及替代方案，而不是将它们作为同等选项呈现。
+
+````markdown
+<!-- 选项太多 -->
+你可以使用 pypdf、pdfplumber、PyMuPDF 或 pdf2image...
+
+<!-- 明确的默认值加上备选方案 -->
+对于文本提取，使用 pdfplumber：
+
+```python
+import pdfplumber
+```
+
+对于需要 OCR 的扫描 PDF，请改用 pdf2image 和 pytesseract。
+````
+
+### 偏好流程而非声明
+
+技能应该教智能体*如何解决*一类问题，而不是*为特定实例生成什么*。比较：
+
+```markdown
+<!-- 特定答案 —— 仅对此确切任务有用 -->
+将 `orders` 表与 `customers` 表在 `customer_id` 上连接，筛选
+`region = 'EMEA'`，并对 `amount` 列求和。
+
+<!-- 可重用方法 —— 适用于任何分析查询 -->
+1. 从 `references/schema.yaml` 读取模式以查找相关表
+2. 使用 `_id` 外键约定连接表
+3. 将用户请求中的任何筛选条件作为 WHERE 子句应用
+4. 根据需要聚合数值列并格式化为 markdown 表格
+```
+
+这并不意味着技能不能包含具体细节——输出格式模板（参见[输出格式模板](#templates-for-output-format)）、约束条件如"绝不输出 PII"和特定工具指令都是有价值的。关键在于，即使个别细节是具体的，*方法*也应该能够泛化。
+
+## 有效指令的模式
+
+这些是构建技能内容的可重用技术。并非每个技能都需要所有模式——使用适合你任务的模式。
+
+### Gotchas 部分
+
+许多技能中价值最高的内容是一份 gotchas 列表——违背合理假设的环境特定事实。这些不是一般性建议（"适当处理错误"），而是具体的纠正，告诉智能体在未被告知的情况下会犯的错误：
+
+```markdown
+## Gotchas
+
+- `users` 表使用软删除。查询必须包含
+  `WHERE deleted_at IS NULL`，否则结果将包括已停用的账户。
+- 用户 ID 在数据库中是 `user_id`，在认证服务中是 `uid`，
+  在计费 API 中是 `accountId`。这三个值指向同一个东西。
+- `/health` 端点只要 Web 服务器在运行就返回 200，
+  即使数据库连接已断开。使用 `/ready` 检查完整的服务健康状态。
+```
+
+将 gotchas 保留在 `SKILL.md` 中，让智能体在遇到情况之前就读到它们。如果告诉智能体何时加载，单独的参考文件也可以工作，但对于非显而易见的问题，智能体可能无法识别触发条件。
+
+::: tip
+当智能体犯了一个你必须纠正的错误时，将纠正添加到 gotchas 部分。这是迭代改进技能最直接的方法之一（参见[通过实际执行改进](#refine-with-real-execution)）。
+:::
+
+### 输出格式模板
+
+当你需要智能体以特定格式产生输出时，提供一个模板。这比用散文描述格式更可靠，因为智能体对具体结构的模式匹配效果很好。短模板可以放在 `SKILL.md` 中；对于较长的模板，或仅在特定情况下需要的模板，将它们存储在 `assets/` 中，并在 `SKILL.md` 中引用，这样它们只在需要时加载。
+
+````markdown
+## 报告结构
+
+使用此模板，根据具体分析调整各部分：
+
+```markdown
+# [分析标题]
+
+## 执行摘要
+[关键发现的一段概述]
+
+## 主要发现
+- 发现 1，附支持数据
+- 发现 2，附支持数据
+
+## 建议
+1. 具体可行的建议
+2. 具体可行的建议
+```
+````
+
+### 多步骤工作流的检查清单
+
+一个明确的检查清单有助于智能体跟踪进度并避免跳过步骤，特别是当步骤有依赖关系或验证关卡时。
+
+```markdown
+## 表单处理工作流
+
+进度：
+- [ ] 步骤 1：分析表单（运行 `scripts/analyze_form.py`）
+- [ ] 步骤 2：创建字段映射（编辑 `fields.json`）
+- [ ] 步骤 3：验证映射（运行 `scripts/validate_fields.py`）
+- [ ] 步骤 4：填写表单（运行 `scripts/fill_form.py`）
+- [ ] 步骤 5：验证输出（运行 `scripts/verify_output.py`）
+```
+
+### 验证循环
+
+指示智能体在继续之前验证自己的工作。模式是：完成工作，运行验证器（脚本、参考检查清单或自检），修复任何问题，重复直到验证通过。
+
+```markdown
+## 编辑工作流
+
+1. 进行编辑
+2. 运行验证：`python scripts/validate.py output/`
+3. 如果验证失败：
+   - 检查错误消息
+   - 修复问题
+   - 再次运行验证
+4. 仅在验证通过时继续
+```
+
+参考文档也可以作为"验证器"——指示智能体在最终确定之前根据参考检查其工作。
+
+### 计划-验证-执行
+
+对于批处理或破坏性操作，让智能体以结构化格式创建中间计划，根据事实来源进行验证，然后才执行。
+
+```markdown
+## PDF 表单填写
+
+1. 提取表单字段：`python scripts/analyze_form.py input.pdf` → `form_fields.json`
+   （列出每个字段名称、类型以及是否为必填）
+2. 创建 `field_values.json`，将每个字段名称映射到其预期值
+3. 验证：`python scripts/validate_fields.py form_fields.json field_values.json`
+   （检查每个字段名称是否存在于表单中、类型是否兼容、
+   以及必填字段是否缺失）
+4. 如果验证失败，修订 `field_values.json` 并重新验证
+5. 填写表单：`python scripts/fill_form.py input.pdf field_values.json output.pdf`
+```
+
+关键成分是步骤 3：一个验证脚本，根据事实来源（`form_fields.json`）检查计划（`field_values.json`）。像"字段 'signature\_date' 未找到 — 可用字段：customer\_name、order\_total、signature\_date\_signed"这样的错误给智能体足够的信息来自我纠正。
+
+### 捆绑可重用脚本
+
+当[迭代技能](/skill-creation/evaluating-skills)时，比较智能体在不同测试用例中的执行追踪。如果你注意到智能体每次运行都独立地重新发明相同的逻辑——构建图表、解析特定格式、验证输出——这是一个信号，表明应该编写一个经过测试的脚本并捆绑在 `scripts/` 中。
+
+关于设计和捆绑脚本的更多信息，请参阅[在技能中使用脚本](/skill-creation/using-scripts)。
+
+---
+
+---
+url: /skill/7hxn2o1o/index.md
+---
+# 规范说明
+> Agent Skills 的完整格式规范。
+
+## 目录结构
+
+一个 skill 是一个目录，至少包含一个 `SKILL.md` 文件：
+
+::: file-tree
+
+* skill-name
+  * SKILL.md          # 必需：元数据 + 说明
+  * scripts/          # 可选：可执行代码
+  * references/       # 可选：文档
+  * assets/           # 可选：模板、资源
+  * ...               # 任何其他文件或目录
+
+:::
+
+## `SKILL.md` 格式
+
+`SKILL.md` 文件必须包含 YAML 前置数据，后跟 Markdown 内容。
+
+### 前置数据字段
+
+| 字段               | 必需   | 约束 |
+| ----------------- | ------ | --- |
+| `name`            | 是     | 最多 64 字符。仅限小写字母、数字和连字符。不能以连字符开头或结尾。 |
+| `description`     | 是     | 最多 1024 字符。非空。描述 skill 的功能及使用时机。 |
+| `license`         | 否     | 许可证名称或对捆绑许可证文件的引用。 |
+| `compatibility`   | 否     | 最多 500 字符。指明环境要求（目标产品、系统包、网络访问等）。 |
+| `metadata`        | 否     | 任意键值对，用于附加元数据。 |
+| `allowed-tools`   | 否     | 空格分隔的列表，列出 skill 可使用的预批准工具。（实验性） |
+
+**最小示例：**
+
+```markdown
+---
+name: skill-name
+description: 描述该 skill 的功能及使用时机。
+---
+```
+
+**包含可选字段的示例：**
+
+```markdown
+---
+name: pdf-processing
+description: 提取 PDF 文本、填写表单、合并文件。处理 PDF 时使用。
+license: Apache-2.0
+metadata:
+  author: example-org
+  version: "1.0"
+---
+```
+
+#### `name` 字段
+
+必需的 `name` 字段：
+
+* 长度必须为 1-64 字符
+* 只能包含 Unicode 小写字母数字字符（`a-z`）和连字符（`-`）
+* 不能以连字符开头或结尾
+* 不能包含连续的连字符（`--`）
+* 必须与父目录名称匹配
+
+**有效示例：**
+
+```yaml
+name: pdf-processing
+```
+
+```yaml
+name: data-analysis
+```
+
+```yaml
+name: code-review
+```
+
+**无效示例：**
+
+```yaml
+name: PDF-Processing  # 不允许大写字母
+```
+
+```yaml
+name: -pdf  # 不能以连字符开头
+```
+
+```yaml
+name: pdf--processing  # 不允许连续连字符
+```
+
+#### `description` 字段
+
+必需的 `description` 字段：
+
+* 长度必须为 1-1024 字符
+* 应同时描述 skill 的功能和使用时机
+* 应包含帮助 Agent 识别相关任务的关键词
+
+**好的示例：**
+
+```yaml
+description: 从 PDF 文件中提取文本和表格，填写 PDF 表单，合并多个 PDF。处理 PDF 文档或用户提及 PDF、表单、文档提取时使用。
+```
+
+**不好的示例：**
+
+```yaml
+description: 处理 PDF。
+```
+
+#### `license` 字段
+
+可选的 `license` 字段：
+
+* 指定 skill 所适用的许可证
+* 建议保持简短（许可证名称或捆绑的许可证文件名）
+
+**示例：**
+
+```yaml
+license: 专有。详见 LICENSE.txt
+```
+
+#### `compatibility` 字段
+
+可选的 `compatibility` 字段：
+
+* 如果提供，长度必须为 1-500 字符
+* 仅当 skill 有特定环境要求时才应包含
+* 可以指明目标产品、所需的系统包、网络访问需求等
+
+**示例：**
+
+```yaml
+compatibility: 为 Claude Code（或类似产品）设计
+```
+
+```yaml
+compatibility: 需要 git、docker、jq 和互联网访问
+```
+
+```yaml
+compatibility: 需要 Python 3.14+ 和 uv
+```
+
+> 大多数 skill 不需要 `compatibility` 字段。
+
+#### `metadata` 字段
+
+可选的 `metadata` 字段：
+
+* 从字符串键到字符串值的映射
+* 客户端可用此存储 Agent Skills 规范未定义的其他属性
+* 建议使用合理唯一的键名以避免意外冲突
+
+**示例：**
+
+```yaml
+metadata:
+  author: example-org
+  version: "1.0"
+```
+
+#### `allowed-tools` 字段
+
+可选的 `allowed-tools` 字段：
+
+* 空格分隔的列表，列出预批准可运行的工具
+* 实验性。不同 Agent 实现对此字段的支持可能不同
+
+**示例：**
+
+```yaml
+allowed-tools: Bash(git:*) Bash(jq:*) Read
+```
+
+### 正文内容
+
+前置数据之后的 Markdown 正文包含 skill 说明。没有格式限制。编写任何有助于 Agent 有效执行任务的内容即可。
+
+建议包含的部分：
+
+* 逐步说明
+* 输入和输出示例
+* 常见边界情况
+
+注意，一旦 Agent 决定激活 skill，它将加载整个文件。考虑将较长的 `SKILL.md` 内容拆分到引用的文件中。
+
+## 可选目录
+
+### `scripts/`
+
+包含 Agent 可以运行的可执行代码。脚本应当：
+
+* 自包含或清晰记录依赖
+* 包含有用的错误信息
+* 优雅地处理边界情况
+
+支持的语言取决于 Agent 实现。常见选项包括 Python、Bash 和 JavaScript。
+
+### `references/`
+
+包含 Agent 在需要时可以阅读的附加文档：
+
+* `REFERENCE.md` - 详细的技术参考
+* `FORMS.md` - 表单模板或结构化数据格式
+* 领域特定文件（`finance.md`、`legal.md` 等）
+
+保持单个参考文件聚焦。Agent 按需加载这些文件，因此较小的文件意味着更少的上下文使用。
+
+### `assets/`
+
+包含静态资源：
+
+* 模板（文档模板、配置模板）
+* 图片（图表、示例）
+* 数据文件（查找表、模式）
+
+## 渐进式披露
+
+Skills 应结构化以高效使用上下文：
+
+1. **元数据**（约 100 tokens）：所有 skill 的 `name` 和 `description` 字段在启动时加载
+2. **说明**（建议 < 5000 tokens）：skill 激活时加载完整的 `SKILL.md` 正文
+3. **资源**（按需）：仅在需要时加载文件（如 `scripts/`、`references/` 或 `assets/` 中的文件）
+
+保持主 `SKILL.md` 在 500 行以内。将详细的参考资料移到单独的文件中。
+
+## 文件引用
+
+当引用 skill 中的其他文件时，使用相对于 skill 根目录的路径：
+
+```markdown
+详见[参考指南](references/REFERENCE.md)。
+
+运行提取脚本：
+scripts/extract.py
+```
+
+保持文件引用相对于 `SKILL.md` 深度不超过一层。避免深度嵌套的引用链。
+
+## 验证
+
+使用 [skills-ref](https://github.com/agentskills/agentskills/tree/main/skills-ref) 参考库来验证你的 skill：
+
+```bash
+skills-ref validate ./my-skill
+```
+
+这会检查你的 `SKILL.md` 前置数据是否有效，并遵循所有命名约定。
+
+---
+
+---
+url: /skill/9vg5lgc2/index.md
+---
+> Agent Skills 是一种轻量级、开放的格式，用于通过专业知识和工作流程扩展 AI Agent 的能力。
+
+核心上，一个 skill 就是一个包含 `SKILL.md` 文件的文件夹。该文件包含元数据（至少包括 `name` 和 `description`）以及指导 Agent 如何执行特定任务的说明。Skills 还可以包含脚本、模板和参考资料。
+
+::: file-tree
+
+* my-skill
+  * SKILL.md          # 必需：说明 + 元数据
+  * scripts/          # 可选：可执行代码
+  * references/       # 可选：文档
+  * assets/           # 可选：模板、资源
+* …
+
+:::
+
+## Skills 的工作原理
+
+Skills 使用**渐进式披露**来高效管理上下文：
+
+1. **发现阶段**：启动时，Agent 只加载每个可用 skill 的名称和描述，刚好足以知道何时该 skill 可能相关。
+
+2. **激活阶段**：当任务匹配某个 skill 的描述时，Agent 将完整的 `SKILL.md` 说明读入上下文。
+
+3. **执行阶段**：Agent 按照说明操作，根据需要选择性加载引用的文件或执行打包的代码。
+
+这种方式既保持了 Agent 的轻量高效，又能在需要时提供更多上下文。
+
+## SKILL.md 文件
+
+每个 skill 都以一个包含 YAML 前置数据和 Markdown 说明的 `SKILL.md` 文件开始：
+
+```md
+---
+name: pdf-processing
+description: 提取 PDF 文本、填写表单、合并文件。处理 PDF 时使用。
+---
+
+# PDF 处理
+
+## 何时使用本技能
+当用户需要处理 PDF 文件时使用本技能……
+
+## 如何提取文本
+1. 使用 pdfplumber 进行文本提取……
+
+## 如何填写表单
+……
+```
+
+`SKILL.md` 顶部需要包含以下必填前置数据：
+
+* `name`：简短的标识符
+* `description`：何时使用本技能
+
+Markdown 正文包含实际的说明，对结构或内容没有特定限制。
+
+这种简单格式有几个关键优势：
+
+* **自文档化**：skill 的作者或用户可以阅读 `SKILL.md` 并理解其功能，使 skills 易于审查和改进。
+
+* **可扩展**：skills 的复杂度可以从纯文本说明到可执行代码、资产和模板，范围广泛。
+
+* **可移植**：skills 只是文件，因此易于编辑、版本管理和共享。
+
+---
+
+---
+url: /skill/sm73y091/index.md
+---
+> 一份面向 AI Agent 或开发工具的 Agent Skills 接入指南。
+
+本文将带你完成 Agent Skills 支持的完整接入流程：发现技能、把技能信息告知模型、在需要时加载技能内容到上下文，并在会话期间持续保持这些内容有效。
+
+无论你的 Agent 架构如何，核心集成思路都相同。实现细节通常取决于两个因素：
+
+* **技能存放在哪里？** 本地运行的 Agent 可以直接扫描用户文件系统中的技能目录；云端托管或沙箱环境中的 Agent 则需要替代发现机制，例如 API、远程注册中心或内置资产。
+* **模型如何访问技能内容？** 如果模型具备读文件能力，它可以直接读取 `SKILL.md`；否则你需要提供专用工具，或在提示词中以程序方式注入技能内容。
+
+本文会标注这些差异出现的位置。你不必覆盖所有场景，只需选择与你的 Agent 最匹配的一条路径。
+
+**前置条件**：熟悉 [Agent Skills 规范](/specification)，该规范定义了 `SKILL.md` 的文件格式、frontmatter 字段与目录约定。
+
+## 核心原则：渐进式披露
+
+所有兼容 Skills 的 Agent 都遵循相同的三层加载策略：
+
+| 层级 | 加载内容 | 时机 | Token 成本 |
+| --- | --- | --- | --- |
+| 1. 目录（Catalog） | 名称 + 描述 | 会话开始 | 每个技能约 50-100 token |
+| 2. 指令（Instructions） | 完整 `SKILL.md` 正文 | 技能被激活时 | 建议小于 5000 token |
+| 3. 资源（Resources） | 脚本、参考文档、资产 | 指令引用到它们时 | 视情况而定 |
+
+模型从一开始就能看到技能目录，因此知道可用技能有哪些。当它判断某个技能相关时，再加载完整指令。如果指令又引用了支持文件，模型再按需逐个读取。
+
+这样可以在保持基础上下文精简的同时，按需引入专业知识。即使安装了 20 个技能，也不必在起始上下文中一次性付出 20 份完整指令的 token 成本。
+
+## 步骤 1：发现技能
+
+在会话启动时，扫描所有可用技能并加载元数据。
+
+### 扫描哪些目录
+
+需要扫描哪些目录，取决于你的 Agent 运行环境。大多数本地 Agent 至少会扫描两个作用域：
+
+* **项目级**（相对工作目录）：项目或仓库专用技能。
+* **用户级**（相对用户主目录）：该用户跨项目可复用的技能。
+
+也可以有其它作用域，例如由管理员下发的组织级技能，或 Agent 自带技能。具体范围由你的部署模型决定。
+
+在每个作用域内，建议同时扫描 **客户端专用目录** 与 **`.agents/skills/` 约定目录**：
+
+| 作用域 | 路径 | 目的 |
+| --- | --- | --- |
+| Project | `<project>/.<your-client>/skills/` | 你的客户端原生位置 |
+| Project | `<project>/.agents/skills/` | 跨客户端互操作 |
+| User | `~/.<your-client>/skills/` | 你的客户端原生位置 |
+| User | `~/.agents/skills/` | 跨客户端互操作 |
+
+`.agents/skills/` 已逐渐成为跨客户端共享技能的通用约定。虽然 Agent Skills 规范没有强制规定技能目录必须放在哪里（它只规定目录内结构），但支持扫描 `.agents/skills/` 可以让不同客户端安装的兼容技能彼此可见。
+
+::: note
+有些实现也会为了兼容性扫描 `.claude/skills/`（项目级与用户级）。其他常见附加位置包括：向上追溯到 git 根目录的祖先路径（适合 monorepo）、[XDG](https://specifications.freedesktop.org/basedir-spec/latest/) 配置目录、以及用户自定义路径。
+:::
+
+### 扫描目标是什么
+
+在每个技能目录中，查找 **包含文件名严格为 `SKILL.md` 的子目录**：
+
+::: file-tree
+
+* \~/.agents/skills
+  * pdf-processing
+    * SKILL.md          ← 已发现
+    * scripts
+      * extract.py
+  * data-analysis
+    * SKILL.md          ← 已发现
+  * README.md             ← 忽略（不是技能目录）
+
+:::
+
+实用扫描规则：
+
+* 跳过不会包含技能的目录，如 `.git/`、`node_modules/`。
+* 可选遵循 `.gitignore`，避免扫描构建产物。
+* 设置合理边界（如最大深度 4-6 层、最多 2000 个目录）防止大目录树失控扫描。
+
+### 处理同名冲突
+
+当两个技能拥有相同 `name` 时，应用确定性的优先级规则。
+
+跨现有实现的通用约定是：**项目级技能覆盖用户级技能**。
+
+同一作用域内如果重名（例如 `<project>/.agents/skills/` 与 `<project>/.<your-client>/skills/` 下都存在 `code-review`），先发现或后发现都可以，但请固定一种策略并保持一致。发生冲突时建议记录 warning，告知用户哪个技能被遮蔽。
+
+### 信任与安全
+
+项目级技能来自当前仓库，而仓库可能不可信（例如刚 clone 的开源项目）。建议对项目级技能加载增加信任门控：仅当用户将项目标记为可信时才加载，避免不可信仓库悄悄向 Agent 上下文注入指令。
+
+### 云端托管与沙箱 Agent
+
+如果 Agent 运行在容器或远程服务器，通常无法访问用户本地文件系统。此时不同作用域需要不同发现方式：
+
+* **项目级技能**：通常最简单。如果 Agent 在沙箱中操作克隆仓库，项目技能会随代码一起进入环境，可直接扫描仓库目录。
+* **用户级/组织级技能**：通常不在沙箱里。你需要从外部来源注入，例如克隆配置仓库、在设置里接收技能 URL 或技能包、或通过 Web UI 让用户上传技能目录。
+* **内置技能**：可打包为部署产物中的静态资源，在每个会话中都可用。
+
+一旦技能可被 Agent 获取，后续生命周期（解析、披露、激活）与本地场景一致。
+
+## 步骤 2：解析 `SKILL.md`
+
+对每个发现到的 `SKILL.md`，提取元数据与正文。
+
+### 提取 Frontmatter
+
+`SKILL.md` 包含两部分：`---` 包裹的 YAML frontmatter，以及其后的 Markdown 正文。解析步骤：
+
+1. 在文件开头找到起始 `---`，并找到其后的结束 `---`。
+2. 解析其中 YAML，提取必需字段 `name`、`description`，以及可选字段。
+3. 结束 `---` 之后的内容（去除首尾空白）即技能正文。
+
+完整字段约束见 [规范](/specification)。
+
+### 处理格式不规范的 YAML
+
+来自其他客户端生态的技能文件，可能包含“严格意义上不合法但某些解析器可接受”的 YAML。最常见问题是冒号值未加引号：
+
+```yaml
+# 严格 YAML 下不合法：冒号会破坏解析
+description: Use this skill when: the user asks about PDFs
+```
+
+可考虑加入回退机制：为这类值自动补引号，或改写为 YAML 块标量后重试，以较小代价提升跨客户端兼容性。
+
+### 宽松校验策略
+
+建议“尽量加载，必要时报错”：
+
+* `name` 与父目录名不一致：告警，但继续加载。
+* `name` 超过 64 字符：告警，但继续加载。
+* `description` 缺失或为空：跳过该技能并记录错误（描述对披露至关重要）。
+* YAML 完全不可解析：跳过该技能并记录错误。
+
+请记录诊断信息，便于在调试命令、日志或 UI 中展示；不要因为外观类问题阻塞整体加载。
+
+::: note
+[规范](/specification) 对 `name` 有严格限制（需匹配父目录、字符集、长度等）。上面的“宽松校验”是为了更好兼容其它客户端来源技能而有意放宽。
+:::
+
+### 需要存储哪些字段
+
+每个技能记录至少包含以下三项：
+
+| 字段 | 说明 |
+| --- | --- |
+| `name` | 来自 frontmatter |
+| `description` | 来自 frontmatter |
+| `location` | `SKILL.md` 绝对路径 |
+
+建议以 `name` 为键存入内存映射，便于激活时快速查找。
+
+正文（frontmatter 后的 markdown）可选择在发现阶段缓存，也可在激活阶段按 `location` 实时读取。前者激活更快，后者更省内存且可读取到文件的最新变更。
+
+技能基础目录（即 `location` 的父目录）将在后续用于解析相对路径和枚举资源，可按需从 `location` 推导。
+
+## 步骤 3：向模型披露可用技能
+
+在不加载完整内容的情况下告诉模型有哪些技能。这是渐进式披露的第 1 层。
+
+### 构建技能目录
+
+对每个发现到的技能，向模型提供 `name`、`description`，可选 `location`（`SKILL.md` 路径）。结构格式可按你的技术栈选择：XML、JSON、项目符号列表都可以。
+
+```xml
+<available_skills>
+  <skill>
+    <name>pdf-processing</name>
+    <description>Extract PDF text, fill forms, merge files. Use when handling PDFs.</description>
+    <location>/home/user/.agents/skills/pdf-processing/SKILL.md</location>
+  </skill>
+  <skill>
+    <name>data-analysis</name>
+    <description>Analyze datasets, generate charts, and create summary reports.</description>
+    <location>/home/user/project/.agents/skills/data-analysis/SKILL.md</location>
+  </skill>
+</available_skills>
+```
+
+`location` 主要有两种作用：
+
+* 支持基于文件读取的激活（见步骤 4）。
+* 给模型提供解析相对路径的基准目录（如 `scripts/evaluate.py`）。
+
+如果你的专用激活工具在返回结果里已包含技能目录路径（见步骤 4 的“结构化包裹”），目录中可省略 `location`。
+
+每个技能大约只增加 50-100 token，因此即使有几十个技能，目录成本仍较低。
+
+### 把目录放在哪里
+
+常见两种方式：
+
+**系统提示词中的专门段落**：在系统提示中加入目录与简短使用说明。最直接、适配广，适用于具备读文件工具的模型。
+
+**工具描述中内嵌目录**：把目录写进专用技能激活工具的描述中（见步骤 4）。这样系统提示更干净，且发现与激活天然绑定。
+
+两者都可行。前者更简单，后者在有专用工具时更清晰。
+
+### 行为指令
+
+在目录旁加入简短说明，告诉模型何时、如何使用技能。文案取决于你的激活机制：
+
+**若模型通过读文件激活技能：**
+
+```text
+The following skills provide specialized instructions for specific tasks.
+When a task matches a skill's description, use your file-read tool to load
+the SKILL.md at the listed location before proceeding.
+When a skill references relative paths, resolve them against the skill's
+directory (the parent of SKILL.md) and use absolute paths in tool calls.
+```
+
+**若模型通过专用工具激活技能：**
+
+```text
+The following skills provide specialized instructions for specific tasks.
+When a task matches a skill's description, call the activate_skill tool
+with the skill's name to load its full instructions.
+```
+
+保持简洁即可。目标是让模型知道“有技能可用”以及“如何加载”，具体细节由技能正文承载。
+
+### 过滤
+
+有些技能应从目录中排除，常见原因：
+
+* 用户在设置中禁用了该技能。
+* 权限系统拒绝访问该技能。
+* 技能声明不允许模型自动调用（如 `disable-model-invocation` 标记）。
+
+建议**彻底隐藏**被过滤技能，而不是展示后再在激活时拦截。否则模型会浪费回合尝试加载不可用技能。
+
+### 当没有可用技能时
+
+如果未发现任何技能，应完全省略目录与行为指令。不要输出空目录块，也不要注册一个没有可选项的技能工具，以免干扰模型判断。
+
+## 步骤 4：激活技能
+
+当模型或用户选定某个技能时，将完整技能指令注入当前对话上下文。这是渐进式披露的第 2 层。
+
+### 模型驱动激活
+
+大多数实现依赖模型自身判断来激活技能，而不是在框架层做关键词匹配。模型先读取步骤 3 的目录，再判断当前任务是否相关，并加载技能。
+
+常见两种实现：
+
+**文件读取激活**：模型用通用读文件工具读取目录中的 `SKILL.md` 路径。无需额外基础设施，适合模型可访问文件系统的场景。
+
+**专用工具激活**：注册一个工具（如 `activate_skill`），传入技能名返回内容。该方式在模型无法直接读文件时是必需的，在可读文件场景也有价值：
+
+* 可控制返回内容格式（保留或去掉 frontmatter）。
+* 可用结构化标签包裹，便于上下文管理识别。
+* 可附带列出技能资源（如 `references/*`）。
+* 可统一做权限控制或用户确认。
+* 可统计激活数据用于分析。
+
+::: tip
+若使用专用激活工具，建议将 `name` 参数限制为有效技能名集合（例如 schema enum），减少模型幻觉出不存在技能名的风险。若无可用技能，则不要注册该工具。
+:::
+
+### 用户显式激活
+
+除了模型自动判断，也应支持用户直接激活技能。常见做法是 slash 指令或 mention 语法（如 `/skill-name`、`$skill-name`），由外层框架拦截后完成技能注入。核心点是：无需模型先发起激活动作，用户可直接触发。
+
+输入联想（用户输入时列出可用技能）也能提升可发现性。
+
+### 模型实际接收到的内容
+
+激活后模型会收到技能指令，通常有两种形式：
+
+**完整文件**：包含 YAML frontmatter 与正文。文件读取激活天然如此；专用工具也可以这么返回。frontmatter 中某些字段（例如 [`compatibility`](/specification#compatibility-field)）在执行时可能有参考价值。
+
+**仅正文（剥离 frontmatter）**：由框架先解析并去掉 frontmatter，仅返回 markdown 指令。许多使用专用激活工具的实现采用这种方式。
+
+两种方式都能工作。
+
+### 结构化包裹
+
+如果使用专用激活工具，建议给技能内容加可识别标签，例如：
+
+```xml
+<skill_content name="pdf-processing">
+# PDF Processing
+
+## When to use this skill
+Use this skill when the user needs to work with PDF files...
+
+[rest of SKILL.md body]
+
+Skill directory: /home/user/.agents/skills/pdf-processing
+Relative paths in this skill are relative to the skill directory.
+
+<skill_resources>
+  <file>scripts/extract.py</file>
+  <file>scripts/merge.py</file>
+  <file>references/pdf-spec-summary.md</file>
+</skill_resources>
+</skill_content>
+```
+
+这样做的好处：
+
+* 模型能清晰区分“技能指令”与普通对话内容。
+* 框架在上下文压缩时可识别并保留技能块。
+* 能把可用资源列表展示给模型，但不必预读全部资源。
+
+### 列出绑定资源
+
+专用激活工具可在返回技能内容时枚举技能目录中的脚本、参考文档和资产，但**不应主动读取这些文件**。模型应在技能指令引用时再按需读取。
+
+如果技能目录很大，建议限制返回数量，并标注“列表可能不完整”。
+
+### 权限白名单
+
+若 Agent 的文件访问有权限门控，建议将技能目录加入白名单，允许模型直接读取技能资源，避免每读一个脚本都弹确认框，影响技能工作流。
+
+## 步骤 5：在会话中持续管理技能上下文
+
+技能内容进入上下文后，需要保证在整个会话期间仍然有效。
+
+### 防止上下文压缩丢失技能内容
+
+若 Agent 会在上下文窗口接近上限时裁剪或摘要旧消息，请**将技能内容排除在裁剪之外**。技能指令属于长期行为指导，一旦中途丢失，性能会悄悄下降且难以察觉。
+
+常见做法：
+
+* 给技能工具输出打“受保护”标记，裁剪算法跳过。
+* 借助步骤 4 的结构化标签识别并保留技能内容。
+
+### 去重激活
+
+可记录当前会话已激活的技能。如果模型或用户重复请求同一技能，可以跳过二次注入，避免上下文出现重复指令。
+
+### 子 Agent 委派（可选）
+
+这是部分客户端支持的高级模式。不是把技能注入主会话，而是把技能放到独立子 Agent 会话中执行：子 Agent 接收技能指令并完成任务，再把结果摘要返回主会话。
+
+当技能流程较复杂、需要专注执行环境时，这种模式会更有优势。
+
+---
+
+---
+url: /skill/snuzydmv/index.md
+---
+# 快速入门
+> 创建你的第一个 Agent Skill，并在 VS Code 中看到它的运行效果。
+
+在本教程中，你将创建一个技能，让 agent 能够使用随机数生成器来掷骰子。
+
+## 准备工作
+
+* [VS Code](https://code.visualstudio.com/) 并安装 [GitHub Copilot](https://marketplace.visualstudio.com/items?itemName=GitHub.copilot)
+
+> \[!info]
+> 本教程使用 VS Code，但 Agent Skills 是一种开放格式。同样的技能可以在任何兼容的 agent 中使用，包括 Claude Code 和 OpenAI Codex。
+
+## 创建技能
+
+一个 skill 就是一个包含 `SKILL.md` 文件的文件夹。VS Code 默认在 `.agents/skills/` 目录下查找 skills。在你的项目中创建 `.agents/skills/roll-dice/SKILL.md` 文件：
+
+````markdown .agents/skills/roll-dice/SKILL.md theme={null}
+---
+name: roll-dice
+description: 使用随机数生成器掷骰子。当被要求掷一个骰子（d6、d20 等）、掷骰子或生成随机骰子结果时使用。
+---
+
+要掷一个骰子，请使用以下命令，该命令会生成一个从 1 到给定面数的随机数：
+
+```bash
+echo $((RANDOM % <sides> + 1))
+```
+
+```powershell
+Get-Random -Minimum 1 -Maximum (<sides> + 1)
+```
+
+将 `<sides>` 替换为骰子的面数（例如，标准骰子为 6，d20 为 20）。
+````
+
+这样就完成了 —— 一个文件，不到 20 行。每个部分的作用如下：
+
+* **`name`** —— skill 的简短标识符。必须与文件夹名称匹配。
+* **`description`** —— 告诉 agent 何时使用这个 skill。agent 通过它来决定是否激活该 skill。
+* **正文** —— 当 skill 激活时，agent 需要遵循的指令。这里，agent 被指示使用终端命令生成一个随机数，并根据用户的请求替换骰子面数。
+
+## 尝试运行
+
+1. 在 VS Code 中打开你的项目。
+2. 打开 Copilot Chat 面板。
+3. 在聊天面板底部的模式下拉菜单中，选择 **Agent** 模式。
+4. 输入 `/skills` 确认 `roll-dice` 出现在列表中。如果没有出现，请检查文件是否位于项目根目录下的 `.agents/skills/roll-dice/SKILL.md`。
+5. 问它：**"Roll a d20"**
+
+agent 应该会激活 `roll-dice` 这个 skill。它可能会请求允许运行一个终端命令 —— 允许它。它会运行命令并返回一个 1 到 20 之间的随机数。
+
+> \[!info]
+> 工具使用的可靠性因模型而异 —— 有些模型会严格遵循 skill 指令并一致地运行命令，而另一些模型可能会尝试自行回答。如果 agent 响应时没有运行终端命令，请尝试从模型下拉菜单中选择一个不同的模型。
+
+## 工作原理
+
+这是背后发生的事情：
+
+1. **发现** —— 聊天会话开始时，agent 会扫描默认的 skill 目录并找到你的 skill。它只读取 `name` 和 `description`，刚好足够知道该 skill 何时可能有用。
+
+2. **激活** —— 当你询问掷骰子时，agent 将你的问题与 skill 的描述进行匹配，然后将完整的 `SKILL.md` 正文加载到上下文中。
+
+3. **执行** —— agent 遵循正文中的指令，根据你请求中的骰子面数调整终端命令。
+
+这个过程使用了**渐进式披露**，让 agent 可以访问许多 skills，而无需预先加载所有指令。更多详情，请参见 [Skills 的工作原理](/what-are-skills#how-skills-work)。
+
+---
+
+---
+url: /skill/tj6gd0kj/index.md
+---
+> 如何改进技能的 description，让它在相关提示下更稳定地触发。
+
+技能只有在被激活时才有价值。`SKILL.md` frontmatter 里的 `description` 字段，是 Agent 判断“是否应加载该技能”的核心依据。描述过于含糊会导致该触发时不触发；描述过宽则会误触发。
+
+本文介绍如何系统化地测试并优化 description 的触发准确率。
+
+## 技能触发是如何发生的
+
+Agent 通常采用 [渐进式披露](/what-are-skills#how-skills-work) 管理上下文。启动时只加载每个技能的 `name` 与 `description`，用于判断相关性；当用户任务与描述匹配时，再将完整 `SKILL.md` 读入上下文并执行其指令。
+
+这意味着：description 承担了几乎全部触发责任。如果它没有清晰表达“何时该用这个技能”，模型就不会主动调用。
+
+还有一个关键细节：Agent 往往只会在任务超出自身通用能力时才考虑技能。比如“读一下这个 PDF”这种一步请求，即使描述匹配，也可能不触发 PDF 技能，因为 Agent 用基础工具就能完成。真正体现 description 价值的，通常是涉及专门知识的任务，例如陌生 API、领域工作流、非常见文件格式等。
+
+## 写出有效 description 的原则
+
+开始测试前，先明确好描述应具备哪些特征：
+
+* **使用祈使语气**：写成给 Agent 的行动指令，例如“Use this skill when...”，而不是“这个技能可以...”。
+* **聚焦用户意图而非实现细节**：描述用户想达成什么，而不是技能内部怎么做。Agent 匹配的是用户请求意图。
+* **适度“主动”一点**：明确列出适用场景，也包含用户没直接说出领域关键词的情况，例如“即使用户未明确提到 CSV 或 analysis 也适用”。
+* **保持简洁**：通常几句到一小段足够。既覆盖范围，又不让技能目录膨胀。注意 [规范](/specification#description-field) 的上限是 1024 字符。
+
+## 设计触发评测查询（eval queries）
+
+要测试触发效果，你需要一组评测查询：真实用户风格的 prompt，并标注该不该触发技能。
+
+```json
+[
+  { "query": "I've got a spreadsheet in ~/data/q4_results.xlsx with revenue in col C and expenses in col D — can you add a profit margin column and highlight anything under 10%?", "should_trigger": true },
+  { "query": "whats the quickest way to convert this json file to yaml", "should_trigger": false }
+]
+```
+
+建议先做约 20 条：8-10 条应该触发，8-10 条不应触发。
+
+### 应触发查询（should-trigger）
+
+用来验证 description 是否覆盖了技能范围。建议从以下维度做变化：
+
+* **表达方式**：正式、口语、带错别字或缩写。
+* **显式程度**：有的直接点名领域（“analyze this CSV”），有的只描述需求（“我老板要一张图”）。
+* **细节密度**：短提示与长上下文混合，比如同时包含路径、列名、背景。
+* **任务复杂度**：既有单步任务，也有多步链路，检验技能需求埋在复杂任务时是否仍能识别。
+
+最有价值的是那些“技能有帮助但并不明显”的查询，这正是 description 文案能拉开差距的地方。
+
+### 不应触发查询（should-not-trigger）
+
+最有价值的负样本是**近似误判（near-miss）**：它们与技能共享关键词或概念，但实际任务不同，可用于检验描述是否“精准而非宽泛”。
+
+以 CSV 分析技能为例，较弱负样本：
+
+* `"Write a fibonacci function"`：明显无关，几乎没有测试价值。
+* `"What's the weather today?"`：关键词完全不重叠，太容易。
+
+更强负样本：
+
+* `"I need to update the formulas in my Excel budget spreadsheet"`：提到表格和数据，但需求是编辑 Excel 公式，不是 CSV 分析。
+* `"can you write a python script that reads a csv and uploads each row to our postgres database"`：涉及 CSV，但本质是 ETL 入库，不是分析。
+
+### 让查询更真实的小技巧
+
+真实用户提示常包含上下文信息。可加入：
+
+* 文件路径（如 `~/Downloads/report_final_v2.xlsx`）
+* 个人背景（如“我经理让我...”）
+* 具体细节（列名、公司名、数据值）
+* 口语、缩写、偶发拼写错误
+
+## 如何验证 description 是否触发
+
+基本方法：将每条查询在安装技能的情况下运行，观察 Agent 是否调用该技能。前提是技能已正确注册并可被 Agent 发现（具体方式因客户端而异，如技能目录、配置文件、CLI 参数）。
+
+多数客户端都提供可观测能力（执行日志、工具调用记录、verbose 输出等），可据此判断是否加载了 `SKILL.md`。
+
+一条查询判定“通过”的条件：
+
+* `should_trigger = true` 且技能被调用；或
+* `should_trigger = false` 且技能未被调用。
+
+### 多次运行
+
+模型行为有随机性，同一查询一次触发、一次不触发都可能发生。建议每条查询运行多次（3 次是常见起点），计算**触发率（trigger rate）**：触发次数 / 运行次数。
+
+判定建议：
+
+* 应触发查询：触发率高于阈值（默认可设 0.5）为通过。
+* 不应触发查询：触发率低于阈值（默认可设 0.5）为通过。
+
+若 20 条查询每条跑 3 次，总计 60 次调用，建议用脚本自动化。下例仅展示通用结构，请将 `claude` 调用和 `check_triggered` 检测逻辑替换为你客户端的实现：
+
+```bash
+#!/bin/bash
+QUERIES_FILE="${1:?Usage: $0 <queries.json>}"
+SKILL_NAME="my-skill"
+RUNS=3
+
+# 该示例基于 Claude Code JSON 输出判断是否触发 Skill 工具。
+# 请按你的客户端替换检测逻辑。
+# 若技能被调用返回 0，否则返回 1。
+check_triggered() {
+  local query="$1"
+  claude -p "$query" --output-format json 2>/dev/null \
+    | jq -e --arg skill "$SKILL_NAME" \
+      'any(.messages[].content[]; .type == "tool_use" and .name == "Skill" and .input.skill == $skill)' \
+      > /dev/null 2>&1
+}
+
+count=$(jq length "$QUERIES_FILE")
+for i in $(seq 0 $((count - 1))); do
+  query=$(jq -r ".[$i].query" "$QUERIES_FILE")
+  should_trigger=$(jq -r ".[$i].should_trigger" "$QUERIES_FILE")
+  triggers=0
+
+  for run in $(seq 1 $RUNS); do
+    check_triggered "$query" && triggers=$((triggers + 1))
+  done
+
+  jq -n \
+    --arg query "$query" \
+    --argjson should_trigger "$should_trigger" \
+    --argjson triggers "$triggers" \
+    --argjson runs "$RUNS" \
+    '{query: $query, should_trigger: $should_trigger, triggers: $triggers, runs: $runs, trigger_rate: ($triggers / $runs)}'
+done | jq -s '.'
+```
+
+::: tip
+如果客户端支持，一旦确认“已触发”或“明显未触发”即可提前停止该次运行，这能显著减少整套评测的时间与成本。
+:::
+
+## 用训练集/验证集避免过拟合
+
+如果你在全部查询上反复调优 description，很容易过拟合：只对当前这批措辞有效，换一批就失效。
+
+建议拆分数据集：
+
+* **训练集（约 60%）**：用于发现失败模式并指导改写。
+* **验证集（约 40%）**：仅用于检查改写是否泛化。
+
+两组都要包含成比例的 should-trigger 与 should-not-trigger，随机打乱后固定切分，保证各轮结果可比。
+
+如果用前面的脚本，可拆成 `train_queries.json` 与 `validation_queries.json` 分别运行。
+
+## 优化循环
+
+1. 在**训练集和验证集**上评估当前 description。训练集用于指导修改，验证集用于检验泛化。
+2. 分析**训练集失败样本**：哪些该触发没触发？哪些不该触发却触发了？
+   * 只用训练集失败指导改写；不要把验证集结果喂回优化过程。
+3. 改写 description，重点是泛化：
+   * 该触发却没触发：通常说明描述过窄，需要扩范围或补充适用上下文。
+   * 不该触发却触发：通常说明描述过宽，需要加边界、写清不做什么。
+   * 不要直接堆失败样本关键词（会过拟合）；应提炼其背后通用类别再写进描述。
+   * 多轮效果停滞时，尝试结构性重写，不要只做小修小补。
+   * 持续检查是否超过 1024 字符上限。
+4. 重复 1-3，直到训练集全部通过或改进趋于停滞。
+5. 以验证集通过率选择最佳版本。最佳版本不一定是最后一版，后期可能已过拟合。
+
+通常 5 轮左右就能看到稳定结论。如果长期无提升，问题可能在查询集本身（太简单、太难、标注不准）。
+
+::: tip
+[`skill-creator`](https://github.com/anthropics/skills/tree/main/skills/skill-creator) 可自动化这套流程：切分数据集、并行评估触发率、调用模型改写 description，并生成可实时查看的 HTML 报告。
+:::
+
+## 应用优化结果
+
+当你选出最佳 description 后：
+
+1. 更新 `SKILL.md` frontmatter 的 `description` 字段。
+2. 确认未超过 [1024 字符限制](/specification#description-field)。
+3. 进行触发验证：先人工试几条 prompt 做快速 sanity check；更严谨时，额外新写 5-10 条未参与优化的查询（正负样本混合）并跑脚本，验证泛化能力。
+
+优化前后示例：
+
+```yaml
+# Before
+description: Process CSV files.
+
+# After
+description: >
+  Analyze CSV and tabular data files — compute summary statistics,
+  add derived columns, generate charts, and clean messy data. Use this
+  skill when the user has a CSV, TSV, or Excel file and wants to
+  explore, transform, or visualize the data, even if they don't
+  explicitly mention "CSV" or "analysis."
+```
+
+改进版描述更清晰地覆盖了“做什么”（统计、派生列、图表、清洗）与“何时适用”（CSV/TSV/Excel，且不要求用户显式提关键词）。
+
+## 下一步
+
+当触发已经稳定后，下一步是评估输出质量。可参考 [Evaluating skill output quality](/skill-creation/evaluating-skills) 了解如何设计测试、打分并迭代技能效果。
+
+---
+
+---
+url: /skill/u9iq3075/index.md
+---
+# 评估技能输出质量
+> 如何通过评测驱动迭代，验证你的技能是否能稳定产出高质量结果。
+
+你写好了一个技能，手动测一条 prompt 也许看起来没问题。但它是否在不同表达、边界场景下都可靠？相比不使用技能是否真正更好？结构化评测（evals）可以回答这些问题，并提供可持续改进的反馈闭环。
+
+## 设计测试用例
+
+一个测试用例包含三部分：
+
+* **Prompt**：真实用户可能输入的请求。
+* **Expected output**：对“成功输出”的人类可读描述。
+* **Input files**（可选）：技能执行所需输入文件。
+
+建议把测试用例放在技能目录下的 `evals/evals.json`：
+
+```json
+{
+  "skill_name": "csv-analyzer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a CSV of monthly sales data in data/sales_2025.csv. Can you find the top 3 months by revenue and make a bar chart?",
+      "expected_output": "A bar chart image showing the top 3 months by revenue, with labeled axes and values.",
+      "files": ["evals/files/sales_2025.csv"]
+    },
+    {
+      "id": 2,
+      "prompt": "there's a csv in my downloads called customers.csv, some rows have missing emails — can you clean it up and tell me how many were missing?",
+      "expected_output": "A cleaned CSV with missing emails handled, plus a count of how many were missing.",
+      "files": ["evals/files/customers.csv"]
+    }
+  ]
+}
+```
+
+编写测试 prompt 的建议：
+
+* **先从 2-3 个用例开始**：先跑通流程，再扩充。
+* **提示多样化**：覆盖口语、正式、简略、详细等风格。
+* **覆盖边界场景**：至少包含一个异常输入、模糊需求或边界条件。
+* **保持真实上下文**：加入路径、列名、业务背景等信息，避免“process this data”这类过于泛化的句子。
+
+一开始无需定义过细的 pass/fail 检查。先看第一轮产出，再补充断言（assertions）更高效。
+
+## 运行评测
+
+核心模式是每个用例跑两次：一次**使用技能**，一次**不使用技能**（或使用旧版本技能）作为基线，便于比较差异。
+
+### 工作区结构
+
+建议把评测产物放在技能目录旁的工作区目录中。每轮评测使用独立 `iteration-N/` 目录；每个测试用例下再分 `with_skill/` 与 `without_skill/`：
+
+::: file-tree
+
+* csv-analyzer
+  * SKILL.md
+  * evals
+    * evals.json
+* csv-analyzer-workspace
+  * iteration-1
+    * eval-top-months-chart
+      * with\_skill
+        * outputs/       # 运行产物
+        * timing.json    # token 与时长
+        * grading.json   # 断言评分结果
+      * without\_skill
+        * outputs/
+        * timing.json
+        * grading.json
+    * eval-clean-missing-emails
+      * with\_skill
+        * outputs/
+        * timing.json
+        * grading.json
+      * without\_skill
+        * outputs/
+        * timing.json
+        * grading.json
+    * benchmark.json         # 汇总统计
+
+:::
+
+你主要手工维护的是 `evals/evals.json`。其余如 `grading.json`、`timing.json`、`benchmark.json` 一般由执行流程产出。
+
+### 派生运行任务
+
+每次评测应从“干净上下文”启动，避免前一轮残留状态污染结果。这能确保 Agent 主要遵循 `SKILL.md` 本身，而不是上下文记忆。
+
+如果环境支持 subagent（例如 Claude Code），隔离会天然更好；否则建议每次运行单独开新会话。
+
+每次运行应提供：
+
+* 技能路径（基线时可不提供）
+* 测试 prompt
+* 输入文件
+* 输出目录
+
+单次“with\_skill”运行示例指令：
+
+```text
+Execute this task:
+- Skill path: /path/to/csv-analyzer
+- Task: I have a CSV of monthly sales data in data/sales_2025.csv.
+  Can you find the top 3 months by revenue and make a bar chart?
+- Input files: evals/files/sales_2025.csv
+- Save outputs to: csv-analyzer-workspace/iteration-1/eval-top-months-chart/with_skill/outputs/
+```
+
+基线运行用相同 prompt，但不传技能路径，并输出到 `without_skill/outputs/`。
+
+如果是在优化已有技能，建议将旧版做快照（如 `cp -r <skill-path> <workspace>/skill-snapshot/`），再让基线指向该快照，输出到 `old_skill/outputs/`。
+
+### 记录耗时与 token
+
+记录时间与 token 可以量化“收益/成本”：技能可能提升质量，但也可能增加时延与 token 消耗。
+
+每次运行后记录如下数据：
+
+```json
+{
+  "total_tokens": 84852,
+  "duration_ms": 23332
+}
+```
+
+::: tip
+在 Claude Code 中，subagent 任务完成通知通常会包含 `total_tokens` 与 `duration_ms`。建议完成后立即保存，这些值通常不会自动持久化。
+:::
+
+## 编写断言（assertions）
+
+断言是“可验证的输出要求”。推荐在看到第一轮结果后再补断言，因为很多时候你在运行前并不清楚理想输出应细化到什么程度。
+
+好的断言示例：
+
+* `"输出文件是合法 JSON"`（可脚本验证）
+* `"柱状图包含坐标轴标签"`（可观察）
+* `"报告至少包含 3 条建议"`（可计数）
+
+较弱断言示例：
+
+* `"输出很好"`（过于主观）
+* `"输出必须包含精确短语 XXX"`（过于脆弱，易误伤）
+
+并非所有质量项都适合做断言。例如文风、视觉审美、“是否顺手”等更适合人工评审。
+
+可在 `evals/evals.json` 中为每个用例补充断言：
+
+```json
+{
+  "skill_name": "csv-analyzer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a CSV of monthly sales data in data/sales_2025.csv. Can you find the top 3 months by revenue and make a bar chart?",
+      "expected_output": "A bar chart image showing the top 3 months by revenue, with labeled axes and values.",
+      "files": ["evals/files/sales_2025.csv"],
+      "assertions": [
+        "The output includes a bar chart image file",
+        "The chart shows exactly 3 months",
+        "Both axes are labeled",
+        "The chart title or caption mentions revenue"
+      ]
+    }
+  ]
+}
+```
+
+## 输出打分
+
+打分就是逐条断言评判 **PASS/FAIL**，并给出证据。证据应来自输出内容本身，而不是主观判断。
+
+最简单方式是让 LLM 读取输出与断言后逐条判断。对于可编程验证项（例如 JSON 合法性、行数、文件存在与尺寸），优先使用脚本，稳定性更高且便于复用。
+
+```json
+{
+  "assertion_results": [
+    {
+      "text": "The output includes a bar chart image file",
+      "passed": true,
+      "evidence": "Found chart.png (45KB) in outputs directory"
+    },
+    {
+      "text": "The chart shows exactly 3 months",
+      "passed": true,
+      "evidence": "Chart displays bars for March, July, and November"
+    },
+    {
+      "text": "Both axes are labeled",
+      "passed": false,
+      "evidence": "Y-axis is labeled 'Revenue ($)' but X-axis has no label"
+    },
+    {
+      "text": "The chart title or caption mentions revenue",
+      "passed": true,
+      "evidence": "Chart title reads 'Top 3 Months by Revenue'"
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 1,
+    "total": 4,
+    "pass_rate": 0.75
+  }
+}
+```
+
+### 打分原则
+
+* **PASS 必须有证据**：不要“推测通过”。
+* **顺便评估断言质量**：若断言总是通过、总是失败或无法验证，说明断言本身需要调整。
+
+::: tip
+比较两个技能版本时，可尝试**盲评**：把两份输出都给评委模型，但不告知来源版本。让其按组织性、可用性、格式与整体完成度打分，可补充断言评分无法覆盖的差异。
+:::
+
+## 汇总结果
+
+当该轮所有运行都完成评分后，按配置汇总统计并写入 `benchmark.json`（例如 `iteration-1/benchmark.json`）：
+
+```json
+{
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": { "mean": 0.83, "stddev": 0.06 },
+      "time_seconds": { "mean": 45.0, "stddev": 12.0 },
+      "tokens": { "mean": 3800, "stddev": 400 }
+    },
+    "without_skill": {
+      "pass_rate": { "mean": 0.33, "stddev": 0.10 },
+      "time_seconds": { "mean": 32.0, "stddev": 8.0 },
+      "tokens": { "mean": 2100, "stddev": 300 }
+    },
+    "delta": {
+      "pass_rate": 0.50,
+      "time_seconds": 13.0,
+      "tokens": 1700
+    }
+  }
+}
+```
+
+`delta` 告诉你“付出了什么，换来了什么”。例如多 13 秒但通过率提升 50 个百分点，通常值得；若 token 翻倍但只提升 2 个百分点，可能不划算。
+
+::: note
+标准差（`stddev`）需要多次运行才有意义。早期样本少时，先关注原始通过数与 delta 即可。
+:::
+
+## 分析模式与问题
+
+聚合统计可能掩盖细节。建议额外做以下分析：
+
+* **清理总是通过的断言**：它们无法体现技能增益。
+* **排查总是失败的断言**：可能是断言本身有问题、用例过难、或评价维度错位。
+* **关注“有技能通过、无技能失败”的断言**：这部分最能说明技能价值。
+* **处理高波动用例**：若同一用例有时过有时不过，说明评测存在随机敏感，或技能指令存在歧义，需要补示例或约束。
+* **检查耗时/token 异常值**：某条用例显著偏慢时，查看执行日志定位瓶颈。
+
+## 人工复审
+
+断言和统计很重要，但只能覆盖“你提前想到的检查项”。人工复审能捕捉未覆盖问题：例如技术上正确但不实用、结构混乱、表达不友好等。
+
+建议逐用例查看实际输出并记录可执行反馈，保存到工作区（例如 `feedback.json`）：
+
+```json
+{
+  "eval-top-months-chart": "The chart is missing axis labels and the months are in alphabetical order instead of chronological.",
+  "eval-clean-missing-emails": ""
+}
+```
+
+像“缺少坐标轴标签”这种反馈可直接转化为改进项；“看起来不太好”则不可执行。
+
+## 迭代技能
+
+完成打分与复审后，你会有三类信号：
+
+* **失败断言**：定位到具体缺口（步骤缺失、指令模糊、场景未覆盖）。
+* **人工反馈**：揭示更广泛质量问题（组织方式、可读性、可用性）。
+* **执行日志**：解释“为什么失败”，例如模型忽略指令、在低价值步骤上耗时。
+
+通常最有效的改进方式是：把这三类信号连同当前 `SKILL.md` 一并交给 LLM，让它提出改写建议。为防止改偏，建议在提示中加入以下约束：
+
+* **从反馈中抽象通用问题**，不要只打补丁修个别样例。
+* **保持技能精简**：更少但更高质量的指令往往更有效。
+* **说明“为什么”**：解释型指令通常比僵硬规则更容易被模型稳定执行。
+* **将重复工作沉淀为脚本**：如果每次都在临时写类似辅助脚本，考虑放入技能 `scripts/`。
+
+### 迭代循环
+
+1. 提供评测信号与当前 `SKILL.md`，让 LLM 给出改进建议。
+2. 审核并应用改动。
+3. 在新目录 `iteration-<N+1>/` 重跑全部用例。
+4. 重新评分并生成汇总。
+5. 进行人工复审，继续下一轮。
+
+当结果达到预期、人工反馈长期为空、或多轮无明显增益时即可收敛。
+
+::: tip
+[`skill-creator`](https://github.com/anthropics/skills/tree/main/skills/skill-creator) 可以自动化该流程的大量步骤：运行评测、断言评分、聚合统计、展示可复审结果。
+:::
