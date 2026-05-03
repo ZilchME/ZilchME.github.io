@@ -70,16 +70,18 @@ copyright:
 
 在每个技能目录中，查找 **包含文件名严格为 `SKILL.md` 的子目录**：
 
-```text
-~/.agents/skills/
-├── pdf-processing/
-│   ├── SKILL.md          ← 已发现
-│   └── scripts/
-│       └── extract.py
-├── data-analysis/
-│   └── SKILL.md          ← 已发现
-└── README.md             ← 忽略（不是技能目录）
-```
+::: file-tree
+
+- ~/.agents/skills
+  - pdf-processing
+    - SKILL.md          ← 已发现
+    - scripts
+      - extract.py
+  - data-analysis
+    - SKILL.md          ← 已发现
+  - README.md             ← 忽略（不是技能目录）
+
+:::
 
 实用扫描规则：
 

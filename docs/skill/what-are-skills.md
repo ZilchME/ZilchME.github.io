@@ -15,13 +15,16 @@ copyright:
 
 核心上，一个 skill 就是一个包含 `SKILL.md` 文件的文件夹。该文件包含元数据（至少包括 `name` 和 `description`）以及指导 Agent 如何执行特定任务的说明。Skills 还可以包含脚本、模板和参考资料。
 
-```directory
-my-skill/
-├── SKILL.md          # 必需：说明 + 元数据
-├── scripts/          # 可选：可执行代码
-├── references/       # 可选：文档
-└── assets/           # 可选：模板、资源
-```
+::: file-tree
+
+- my-skill
+  - SKILL.md          # 必需：说明 + 元数据
+  - scripts/          # 可选：可执行代码
+  - references/       # 可选：文档
+  - assets/           # 可选：模板、资源
+- …
+
+:::
 
 ## Skills 的工作原理
 

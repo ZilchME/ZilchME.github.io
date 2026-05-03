@@ -93,7 +93,7 @@ export default defineUserConfig({
      * @see https://theme-plume.vuejs.press/config/markdown/
      */
     markdown: {
-        abbr: true,         // 启用 abbr 语法  *[label]: content
+      abbr: true,         // 启用 abbr 语法  *[label]: content
       //   annotation: true,   // 启用 annotation 语法  [+label]: content
       //   pdf: true,          // 启用 PDF 嵌入 @[pdf](/xxx.pdf)
       //   caniuse: true,      // 启用 caniuse 语法  @[caniuse](feature_name)
@@ -176,7 +176,10 @@ export default defineUserConfig({
      * @see https://theme-plume.vuejs.press/guide/features/llmstxt/
      */
     llmstxt: {
-      locale: '/',    // 默认仅为主语言生成 llms 友好内容
-    }
+      llmsTxtTemplateGetter: {
+        details: '',
+        description: 'Zilch 个人博客，知识库',
+      },
+    },
   }),
 })

@@ -62,33 +62,35 @@ copyright:
 
 建议把评测产物放在技能目录旁的工作区目录中。每轮评测使用独立 `iteration-N/` 目录；每个测试用例下再分 `with_skill/` 与 `without_skill/`：
 
-```text
-csv-analyzer/
-├── SKILL.md
-└── evals/
-    └── evals.json
-csv-analyzer-workspace/
-└── iteration-1/
-    ├── eval-top-months-chart/
-    │   ├── with_skill/
-    │   │   ├── outputs/       # 运行产物
-    │   │   ├── timing.json    # token 与时长
-    │   │   └── grading.json   # 断言评分结果
-    │   └── without_skill/
-    │       ├── outputs/
-    │       ├── timing.json
-    │       └── grading.json
-    ├── eval-clean-missing-emails/
-    │   ├── with_skill/
-    │   │   ├── outputs/
-    │   │   ├── timing.json
-    │   │   └── grading.json
-    │   └── without_skill/
-    │       ├── outputs/
-    │       ├── timing.json
-    │       └── grading.json
-    └── benchmark.json         # 汇总统计
-```
+::: file-tree
+
+- csv-analyzer
+  - SKILL.md
+  - evals
+    - evals.json
+- csv-analyzer-workspace
+  - iteration-1
+    - eval-top-months-chart
+      - with_skill
+        - outputs/       # 运行产物
+        - timing.json    # token 与时长
+        - grading.json   # 断言评分结果
+      - without_skill
+        - outputs/
+        - timing.json
+        - grading.json
+    - eval-clean-missing-emails
+      - with_skill
+        - outputs/
+        - timing.json
+        - grading.json
+      - without_skill
+        - outputs/
+        - timing.json
+        - grading.json
+    - benchmark.json         # 汇总统计
+
+:::
 
 你主要手工维护的是 `evals/evals.json`。其余如 `grading.json`、`timing.json`、`benchmark.json` 一般由执行流程产出。
 

@@ -21,7 +21,7 @@ linuxqq --ozone-platform-hint=auto --enable-wayland-ime
 
 找到对应的 `qq.desktop` 文件并在 `Exec` 行添加启动参数 `--ozone-platform-hint=auto --enable-wayland-ime`
 
-```pain
+```ini
 Exec=linuxqq %U --ozone-platform-hint=auto --enable-wayland-ime`
 ```
 
