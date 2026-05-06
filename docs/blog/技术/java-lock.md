@@ -184,15 +184,6 @@ public final boolean weakCompareAndSetInt(Object o, long offset,
     return compareAndSetInt(o, offset, expected, x);
 }
 
-/**
- * Atomically updates Java variable to {@code x} if it is currently
- * holding {@code expected}.
- *
- * <p>This operation has memory semantics of a {@code volatile} read
- * and write.  Corresponds to C11 atomic_compare_exchange_strong.
- *
- * @return {@code true} if successful
- */
 @IntrinsicCandidate
 public final native boolean compareAndSetInt(Object o, long offset,
                                              int expected,
@@ -350,7 +341,7 @@ public class SpinLock {
 >
 >   2. **轻量级锁的情况：**轻量级锁使用线程栈中的 `Lock Record` 来存储锁信息：`` 中保存了**锁对象的 Mark Word 的完整拷贝**（称为 Displaced Mark Word）。锁释放时，这个备份会被写回对象头，哈希码又回到了 Mark Word 中。
 >
->   3. **偏向锁的情况：**在线程获取偏向锁时，哈希码会被覆盖。如果一个对象的 `hashCode` 方法已经被调用过一次之后，这个对象便不能被设置偏向锁。因为哈希码被偏向线程Id给覆盖后，会造成同一个对象前后两次调用 `hashCode` 方法得到的结果不一致的问题。
+>   3. **偏向锁的情况：**在线程获取偏向锁时，哈希码会被覆盖。==**如果一个对象的 `hashCode` 方法已经被调用过一次之后，这个对象便不能被设置偏向锁**==。因为哈希码被偏向线程Id给覆盖后，会造成同一个对象前后两次调用 `hashCode` 方法得到的结果不一致的问题。
 >
 >      ==当一个对象当前**正处于偏向锁状态**，并且需要计算其哈希码的话，则它的偏向锁会被撤销，并且**锁会膨胀为轻量级锁或者重量锁**；==
 

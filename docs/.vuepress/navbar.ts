@@ -19,6 +19,9 @@ export default defineNavbarConfig([
   {
     text: '笔记',
     icon: 'material-symbols:note-stack',
-    items: [{ text: 'Skill', link: '/skill/', icon: 'material-symbols:extension' }]
+    items: [
+      { text: 'Skill', link: '/skill/', icon: 'material-symbols:extension' },
+      { text: 'MySQL', link: '/mysql/', icon: 'material-symbols:storage' },
+    ]
   },
 ])

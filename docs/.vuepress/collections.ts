@@ -61,6 +61,14 @@ const demoDoc = defineCollection({
   // sidebar: 'auto',
 })
 
+const MySQLDoc = defineCollection({
+  type: 'doc',
+  dir: 'mysql',
+  linkPrefix: '/mysql',
+  title: 'MySQL 基础',
+  sidebar: 'auto',
+})
+
 const skillDoc = defineCollection({
   // doc 类型，该类型带有侧边栏
   type: 'doc',
@@ -95,4 +103,5 @@ export default defineCollections([
   blog,
   demoDoc,
   skillDoc,
+  MySQLDoc,
 ])
