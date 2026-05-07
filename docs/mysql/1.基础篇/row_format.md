@@ -140,7 +140,11 @@ CREATE TABLE `t_user` (
 
 假设 `t_user` 表里有三条记录，我们看看这三条记录的行格式中的「变长字段长度列表」是怎样存储的。
 
-![img](https://cdn.xiaolincoding.com/gh/xiaolincoder/mysql/row_format/t_test.png)
+| id   | name | phone  | age    |
+| :--- | :--- | :----- | :----- |
+| 1    | a    | 123    | 18     |
+| 2    | bb   | 1234   | (NULL) |
+| 3    | ccc  | (NULL) | (NULL) |
 
 **第一条记录**：
 
