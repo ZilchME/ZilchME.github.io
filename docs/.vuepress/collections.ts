@@ -77,6 +77,14 @@ const redisDoc = defineCollection({
   sidebar: 'auto',
 })
 
+const agentDoc = defineCollection({
+  type: 'doc',
+  dir: 'agent',
+  linkPrefix: '/agent',
+  title: 'Agent 文档',
+  sidebar: 'auto',
+})
+
 const skillDoc = defineCollection({
   // doc 类型，该类型带有侧边栏
   type: 'doc',
@@ -113,4 +121,5 @@ export default defineCollections([
   skillDoc,
   MySQLDoc,
   redisDoc,
+  agentDoc,
 ])

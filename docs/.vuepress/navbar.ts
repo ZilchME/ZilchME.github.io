@@ -20,6 +20,7 @@ export default defineNavbarConfig([
     text: '笔记',
     icon: 'material-symbols:note-stack',
     items: [
+      { text: 'Agent', link: '/agent/', icon: 'material-symbols:psychology' },
       { text: 'Agent Skills', link: '/skills/', icon: 'material-symbols:extension' },
       { text: 'MySQL', link: '/mysql/', icon: 'material-symbols:storage' },
       { text: 'Redis', link: '/redis/', icon: 'material-symbols:database' },

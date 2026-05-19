@@ -172,7 +172,7 @@ export default defineUserConfig({
      * 加密功能
      * @see https://theme-plume.vuejs.press/guide/features/encryption/
      */
-    // encrypt: {},
+    encrypt: {},
 
     /**
      * 启用 llmstxt 插件，用于为大语言模型提供更友好的内容
