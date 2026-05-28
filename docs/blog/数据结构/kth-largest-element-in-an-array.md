@@ -1,10 +1,15 @@
 ---
-title: 数组中的第K个最大元素和快速排序
+title: 数组中的第 K 个最大元素和快速排序
 createTime: 2026/05/21 08:38:20
 permalink: /blog/lf6ua3hc/
+tags:
+  - 数据结构
+  - 堆
+  - 快速排序
+  - 快速选择
 ---
 
-## 215. 数组中的第K个最大元素
+## 215. 数组中的第 K 个最大元素
 
 <p>给定整数数组 <code>nums</code> 和整数 <code>k</code>，请返回数组中第 <code><strong>k</strong></code> 个最大的元素。</p>
 
