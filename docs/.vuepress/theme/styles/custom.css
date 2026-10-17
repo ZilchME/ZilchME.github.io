@@ -18,6 +18,15 @@
   --vp-c-text-3: rgba(17, 24, 39, 0.56);
 }
 
+/* 将二级标题的分割线移到标题下方，与正文宽度对齐 */
+.vp-doc h2:not(.vp-doc-header) {
+  border-top: 0;
+  border-bottom: 1px solid var(--vp-c-divider);
+  margin-top: 24px;
+  padding-top: 0;
+  padding-bottom: 0.5rem;
+}
+
 /* 让 Markdown 图片默认居中 */
 .vp-doc p > img {
   display: block;

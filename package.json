@@ -3,7 +3,7 @@
   "type": "module",
   "version": "1.0.0",
   "description": "",
-  "packageManager": "pnpm@10.30.3",
+  "packageManager": "pnpm@12.14.0+sha512.c18ba6d87993d3d164cb5e8948f32b2c06ee854487e06cd8d86781342fb3e5bb4634367034711e86802baa9c37bea906ce1929ad08d70884c97d801df13389a6",
   "license": "MIT",
   "scripts": {
     "docs:build": "vuepress build docs --clean-cache --clean-temp",
@@ -13,19 +13,13 @@
     "vp-update": "pnpm dlx vp-update"
   },
   "devDependencies": {
-    "@vuepress/bundler-vite": "2.0.0-rc.28",
-    "@vuepress/plugin-llms": "2.0.0-rc.128",
+    "@vuepress/bundler-vite": "2.0.0-rc.31",
+    "@vuepress/plugin-llms": "2.0.0-rc.137",
     "http-server": "^14.1.1",
     "typescript": "^5.9.3",
-    "vue": "^3.5.34",
-    "vuepress": "2.0.0-rc.28",
-    "vuepress-theme-plume": "1.0.0-rc.198"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@parcel/watcher",
-      "esbuild"
-    ]
+    "vue": "^3.5.44",
+    "vuepress": "2.0.0-rc.31",
+    "vuepress-theme-plume": "1.0.0-rc.214"
   },
   "engines": {
     "node": "^20.19.0 || >=22.0.0"

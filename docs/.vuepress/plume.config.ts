@@ -21,6 +21,7 @@ export default defineThemeConfig({
   logo: '/dead-fish.png',
 
   appearance: true,  // 配置 深色模式
+  readAid: 'left',
 
   social: [
     { icon: 'github', link: 'https://github.com/ZilchME' },

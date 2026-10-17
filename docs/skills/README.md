@@ -9,6 +9,7 @@ copyright:
     url: https://anthropic.com/
   license: CC-BY-4.0
   source: https://agentskills.io/home
+pageLayout: home
 ---
 
 > 一种简单、开放的格式，用于为 AI Agent 赋予新的能力和专业知识。
