@@ -3,6 +3,13 @@ title: 核心八股
 createTime: 2026/05/17 17:46:57
 permalink: /blog/niznvy98/
 password: 142857
+tags:
+  - Java
+  - JVM
+  - MySQL
+  - Redis
+  - 操作系统
+  - TCP
 ---
 
 ## 核心八股

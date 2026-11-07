@@ -3,6 +3,12 @@ title: 项目场景
 createTime: 2026/05/17 17:52:13
 permalink: /blog/afsodq5q/
 password: 142857
+tags:
+  - Java
+  - Redis
+  - 消息队列
+  - 系统设计
+  - Agent
 ---
 ## 探店邮你
 

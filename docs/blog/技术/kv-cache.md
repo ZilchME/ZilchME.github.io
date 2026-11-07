@@ -2,6 +2,10 @@
 title: 大模型推理加速：KV Cache
 createTime: 2025/04/24 11:39:14
 permalink: /blog/ky8eyf1y/
+tags:
+  - 大模型
+  - KV Cache
+  - 性能优化
 ---
 
 KV Cache是Transformer标配的推理加速功能，其只能用于Decoder架构的模型，这是因为 Decoder 有 Causal Mask，在推理的时候前面已经生成的字符不需要与后面的字符产生 attention，从而使得前面已经计算的 K 和 V 可以缓存起来。
