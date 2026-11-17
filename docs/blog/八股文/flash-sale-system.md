@@ -9,9 +9,7 @@ tags:
   - 消息队列
 copyright:
   creation: reprint
-  license:
-    name: 版权所有，归原作者所有
-    url: https://cloud.tencent.com/developer/article/1863530
+  license: CC-BY-SA-4.0
   source: https://cloud.tencent.com/developer/article/1863530
   author:
     name: 苏三说技术
